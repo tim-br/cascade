@@ -20,8 +20,26 @@ if config_env() == :prod do
 
   maybe_ipv6 = if System.get_env("ECTO_IPV6") in ~w(true 1), do: [:inet6], else: []
 
+  # Extract hostname from DATABASE_URL for SNI (Server Name Indication)
+  db_hostname =
+    database_url
+    |> URI.parse()
+    |> Map.get(:host)
+    |> to_charlist()
+
+  # Configure SSL with proper certificate verification for RDS
+  # Uses AWS RDS CA bundle downloaded in Dockerfile
+  ssl_opts = [
+    verify: :verify_peer,
+    cacertfile: "/usr/local/share/ca-certificates/aws/rds-ca-bundle.pem",
+    server_name_indication: db_hostname,
+    customize_hostname_check: [
+      match_fun: :public_key.pkix_verify_hostname_match_fun(:https)
+    ]
+  ]
+
   config :cascade, Cascade.Repo,
-    ssl: true,
+    ssl: ssl_opts,
     url: database_url,
     pool_size: String.to_integer(System.get_env("POOL_SIZE") || "10"),
     # For machines with several cores, consider starting multiple pools of `pool_size`

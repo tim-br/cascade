@@ -38,6 +38,10 @@ RUN apt-get update && \
     apt-get install -y \
     locales \
     ca-certificates \
+    curl \
+    && curl -o /tmp/global-bundle.pem https://truststore.pki.rds.amazonaws.com/global/global-bundle.pem \
+    && mkdir -p /usr/local/share/ca-certificates/aws \
+    && mv /tmp/global-bundle.pem /usr/local/share/ca-certificates/aws/rds-ca-bundle.pem \
     && rm -rf /var/lib/apt/lists/*
 
 # Set locale
