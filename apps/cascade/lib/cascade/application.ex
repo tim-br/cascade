@@ -38,7 +38,8 @@ defmodule Cascade.Application do
     # Can be configured via environment variable
     worker_count =
       case System.get_env("CASCADE_WORKERS") do
-        nil -> nil  # Use default (2x schedulers)
+        # Use default (2x schedulers)
+        nil -> nil
         count -> String.to_integer(count)
       end
 

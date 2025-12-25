@@ -17,7 +17,11 @@ defmodule CascadeWeb.Router do
   scope "/", CascadeWeb do
     pipe_through :browser
 
-    get "/", PageController, :home
+    live "/", DashboardLive, :index
+    live "/dags", DAGListLive, :index
+    live "/dags/:id", DAGDetailLive, :show
+    live "/jobs/:id", JobDetailLive, :show
+    live "/workers", WorkerListLive, :index
   end
 
   # Other scopes may use custom stacks.

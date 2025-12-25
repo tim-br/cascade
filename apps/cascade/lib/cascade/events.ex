@@ -130,6 +130,9 @@ defmodule Cascade.Events do
   Broadcasts a message to a specific worker node.
   """
   def send_to_worker(node, message) do
+    IO.puts("sending to worker")
+    IO.puts("#{inspect(message)}")
+
     Phoenix.PubSub.broadcast(
       Cascade.PubSub,
       worker_topic(node),

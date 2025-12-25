@@ -19,7 +19,10 @@ defmodule Cascade.Runtime.TaskExecutors.LocalExecutor do
   - job_id, task_id, task_config
   """
   def execute(task_config, payload) do
-    module_name = task_config["module"]
+    Logger.info("Executing task with payload: #{inspect(payload)}")
+
+    # Module might be at top level or in config
+    module_name = task_config["module"] || get_in(task_config, ["config", "module"])
 
     if module_name do
       try do

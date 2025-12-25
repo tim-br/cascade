@@ -1,7 +1,6 @@
 defmodule Cascade.DSL.Compiler do
   @moduledoc """
   Compiles the DSL into a language-agnostic JSON representation.
-
   The compiled format is:
   %{
     "name" => "dag_name",
@@ -14,28 +13,31 @@ defmodule Cascade.DSL.Compiler do
   @doc """
   Compiles the DAG definition from DSL format to JSON format.
   """
-  def compile(dag_name, tasks, module) do
+  def compile(dag_name, tasks, _module, opts \\ []) do
+    IO.puts("IN COMPILE")
+    IO.inspect(tasks, label: "RAW TASKS IN COMPILER")
     # Reverse tasks because they're accumulated in reverse order
     tasks = Enum.reverse(tasks)
 
-    # Extract metadata from module attributes
-    description = Module.get_attribute(module, :dag_description)
-    schedule = Module.get_attribute(module, :dag_schedule)
+    # Extract metadata from opts (keyword list)
+    description = Keyword.get(opts, :description)
+    schedule = Keyword.get(opts, :schedule)
 
     # Build nodes from tasks
-    nodes = Enum.map(tasks, fn {task_id, config} ->
-      %{
-        "id" => to_string(task_id),
-        "type" => to_string(config[:type] || :local),
-        "config" => build_task_config(config)
-      }
-    end)
+    nodes =
+      Enum.map(tasks, fn {task_id, config} ->
+        %{
+          "id" => to_string(task_id),
+          "type" => to_string(config[:type] || :local),
+          "config" => build_task_config(config)
+        }
+      end)
 
     # Build edges from dependencies
     edges = build_edges(tasks)
 
     # Compile into JSON structure
-    %{
+    return = %{
       "name" => dag_name,
       "nodes" => nodes,
       "edges" => edges,
@@ -44,6 +46,9 @@ defmodule Cascade.DSL.Compiler do
         "schedule" => schedule
       }
     }
+
+    IO.inspect(return, label: "RETURN VALUE")
+    return
   end
 
   defp build_task_config(config) do
@@ -53,7 +58,16 @@ defmodule Cascade.DSL.Compiler do
     |> Map.new()
   end
 
-  defp normalize_value(value) when is_atom(value), do: to_string(value)
+  defp normalize_value(value) when is_atom(value) do
+    if Atom.to_string(value) |> String.starts_with?("Elixir.") do
+      value
+      |> Module.split()
+      |> Enum.join(".")
+    else
+      to_string(value)
+    end
+  end
+
   defp normalize_value(value) when is_list(value), do: Enum.map(value, &normalize_value/1)
   defp normalize_value(value), do: value
 
