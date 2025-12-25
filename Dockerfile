@@ -58,4 +58,4 @@ EXPOSE 4000
 
 ENV HOME=/app
 
-CMD ["bin/init", "start"]
+CMD ["bin/init", "foreground"]
