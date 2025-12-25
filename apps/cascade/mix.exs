@@ -43,7 +43,12 @@ defmodule Cascade.MixProject do
       {:jason, "~> 1.2"},
       {:libgraph, "~> 0.16"},
       {:swoosh, "~> 1.16"},
-      {:req, "~> 0.5"}
+      {:req, "~> 0.5"},
+      {:ex_aws, "~> 2.5"},
+      {:ex_aws_lambda, "~> 2.0"},
+      {:ex_aws_s3, "~> 2.5"},
+      {:hackney, "~> 1.20"},
+      {:sweet_xml, "~> 0.7"}
     ]
   end
 

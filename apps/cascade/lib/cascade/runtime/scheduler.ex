@@ -175,10 +175,11 @@ defmodule Cascade.Runtime.Scheduler do
             Map.has_key?(job_state.running_tasks, task_id)
           end)
 
-        # Dispatch each ready task
+        # Dispatch each ready task with context from completed dependencies
         Enum.each(ready_tasks, fn task_id ->
           task_config = find_task_config(dag_definition, task_id)
-          Executor.dispatch_task(job_id, task_id, task_config)
+          task_context = build_task_context(job_id, task_id, dag_definition, completed_tasks)
+          Executor.dispatch_task(job_id, task_id, task_config, task_context)
         end)
 
       {:error, _} ->
@@ -189,6 +190,44 @@ defmodule Cascade.Runtime.Scheduler do
   defp find_task_config(dag_definition, task_id) do
     dag_definition["nodes"]
     |> Enum.find(fn node -> node["id"] == task_id end)
+  end
+
+  defp build_task_context(job_id, task_id, dag_definition, completed_tasks) do
+    # Get the original job context
+    job = Workflows.get_job!(job_id)
+    job_context = job.context || %{}
+
+    # Find dependencies for this task
+    dependencies = find_task_dependencies(dag_definition, task_id)
+
+    # Get results from completed dependency tasks
+    dependency_results =
+      dependencies
+      |> Enum.filter(fn dep_id -> dep_id in completed_tasks end)
+      |> Enum.map(fn dep_id ->
+        # Fetch task execution result from database
+        case Workflows.list_task_executions_for_job(job_id) do
+          task_executions ->
+            task_execution = Enum.find(task_executions, fn te -> te.task_id == dep_id end)
+
+            if task_execution && task_execution.result do
+              {dep_id, task_execution.result}
+            else
+              {dep_id, %{}}
+            end
+        end
+      end)
+      |> Map.new()
+
+    # Merge job context with upstream results
+    Map.merge(job_context, %{"upstream_results" => dependency_results})
+  end
+
+  defp find_task_dependencies(dag_definition, task_id) do
+    # Find all edges that point TO this task
+    dag_definition["edges"]
+    |> Enum.filter(fn edge -> edge["to"] == task_id end)
+    |> Enum.map(fn edge -> edge["from"] end)
   end
 
   defp job_complete?(job_state) do

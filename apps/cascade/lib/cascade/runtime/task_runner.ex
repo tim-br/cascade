@@ -12,7 +12,7 @@ defmodule Cascade.Runtime.TaskRunner do
   require Logger
 
   alias Cascade.Runtime.{Scheduler, StateManager}
-  alias Cascade.Runtime.TaskExecutors.LocalExecutor
+  alias Cascade.Runtime.TaskExecutors.{LocalExecutor, LambdaExecutor}
   alias Cascade.Events
 
   ## Client API
@@ -45,26 +45,35 @@ defmodule Cascade.Runtime.TaskRunner do
   def handle_info({:execute_task, payload}, state) do
     %{job_id: job_id, task_id: task_id, task_config: task_config} = payload
 
-    Logger.info("Executing task: job_id=#{job_id}, task_id=#{task_id}")
+    # Check if task is already assigned/running (deduplication)
+    case StateManager.claim_task(job_id, task_id, state.worker_id) do
+      {:ok, :claimed} ->
+        Logger.info("Executing task: job_id=#{job_id}, task_id=#{task_id}, worker=#{state.worker_id}")
 
-    # Update state to running
-    StateManager.update_task_status(job_id, task_id, :running, worker_node: node())
+        # Update state to running
+        StateManager.update_task_status(job_id, task_id, :running, worker_node: node())
 
-    # Execute the task
-    result = execute_task(task_config, payload)
+        # Execute the task
+        result = execute_task(task_config, payload)
 
-    # Handle result
-    case result do
-      {:ok, task_result} ->
-        Logger.info("Task succeeded: job_id=#{job_id}, task_id=#{task_id}")
-        Scheduler.handle_task_completion(job_id, task_id, task_result)
+        # Handle result
+        case result do
+          {:ok, task_result} ->
+            Logger.info("Task succeeded: job_id=#{job_id}, task_id=#{task_id}")
+            Scheduler.handle_task_completion(job_id, task_id, task_result)
 
-      {:error, error} ->
-        Logger.error("Task failed: job_id=#{job_id}, task_id=#{task_id}, error=#{inspect(error)}")
-        Scheduler.handle_task_failure(job_id, task_id, inspect(error))
+          {:error, error} ->
+            Logger.error("Task failed: job_id=#{job_id}, task_id=#{task_id}, error=#{inspect(error)}")
+            Scheduler.handle_task_failure(job_id, task_id, inspect(error))
+        end
+
+        {:noreply, %{state | current_task: nil}}
+
+      {:error, :already_claimed} ->
+        # Task already being executed by another worker, skip
+        Logger.debug("Task already claimed by another worker: job_id=#{job_id}, task_id=#{task_id}")
+        {:noreply, state}
     end
-
-    {:noreply, %{state | current_task: nil}}
   end
 
   ## Private Functions
@@ -77,8 +86,7 @@ defmodule Cascade.Runtime.TaskRunner do
         LocalExecutor.execute(task_config, payload)
 
       "lambda" ->
-        # Phase 3: Lambda execution
-        {:error, "Lambda execution not yet implemented"}
+        LambdaExecutor.execute(task_config, payload)
 
       _ ->
         {:error, "Unknown task type: #{task_type}"}

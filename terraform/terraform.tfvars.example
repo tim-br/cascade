@@ -1,0 +1,17 @@
+# Cascade Terraform Variables Example
+# Copy this file to terraform.tfvars and customize the values
+
+# AWS Region where resources will be created
+aws_region = "us-east-2"
+
+# S3 bucket name for storing workflow artifacts
+# MUST be globally unique across all AWS accounts
+# Recommended format: cascade-artifacts-{your-name-or-org}
+bucket_name = "cascade-artifacts-demo"
+
+# Optional: Add tags to all resources
+# tags = {
+#   Environment = "development"
+#   Project     = "cascade"
+#   ManagedBy   = "terraform"
+# }

@@ -57,6 +57,14 @@ defmodule Cascade.Runtime.StateManager do
   end
 
   @doc """
+  Atomically claims a task for execution.
+  Returns {:ok, :claimed} if successfully claimed, {:error, :already_claimed} if already taken.
+  """
+  def claim_task(job_id, task_id, worker_id) do
+    GenServer.call(__MODULE__, {:claim_task, job_id, task_id, worker_id})
+  end
+
+  @doc """
   Records a worker heartbeat.
   """
   def record_heartbeat(node, capacity, active_tasks) do
@@ -128,8 +136,9 @@ defmodule Cascade.Runtime.StateManager do
         # Publish task event
         publish_task_event(job_id, task_id, new_status, opts)
 
-        # Async persist to Postgres
-        Task.start(fn -> persist_task_status(job_id, task_id, new_status, opts) end)
+        # Persist to Postgres (synchronous for reliability)
+        # Use Task.Supervisor for async in production if needed
+        persist_task_status(job_id, task_id, new_status, opts)
 
         {:reply, {:ok, updated_state}, state}
 
@@ -163,6 +172,32 @@ defmodule Cascade.Runtime.StateManager do
 
       [] ->
         {:reply, {:error, :job_not_found}, state}
+    end
+  end
+
+  @impl true
+  def handle_call({:claim_task, job_id, task_id, worker_id}, _from, state) do
+    # Atomically check and claim the task
+    case :ets.lookup(:worker_assignments, {job_id, task_id}) do
+      [] ->
+        # Not assigned yet, claim it
+        assignment = %{
+          worker_id: worker_id,
+          worker_node: node(),
+          claimed_at: DateTime.utc_now(),
+          status: :claimed
+        }
+
+        :ets.insert(:worker_assignments, {{job_id, task_id}, assignment})
+        {:reply, {:ok, :claimed}, state}
+
+      [{_key, existing_assignment}] ->
+        # Already assigned, check if it's this worker
+        if existing_assignment[:worker_id] == worker_id do
+          {:reply, {:ok, :claimed}, state}
+        else
+          {:reply, {:error, :already_claimed}, state}
+        end
     end
   end
 

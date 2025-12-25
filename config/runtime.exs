@@ -110,3 +110,19 @@ if config_env() == :prod do
 
   config :cascade, :dns_cluster_query, System.get_env("DNS_CLUSTER_QUERY")
 end
+
+# AWS Configuration (all environments)
+# ExAws will automatically use AWS credential chain:
+#   1. Environment variables (AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY)
+#   2. AWS credentials file (~/.aws/credentials) - from `aws configure`
+#   3. AWS config file (~/.aws/config)
+#   4. EC2/ECS instance metadata (if running on AWS)
+config :ex_aws,
+  region: System.get_env("AWS_REGION") || System.get_env("AWS_DEFAULT_REGION") || "us-east-1",
+  json_codec: Jason,
+  http_client: ExAws.Request.Hackney
+
+# Cascade AWS-specific configuration
+config :cascade,
+  aws_region: System.get_env("AWS_REGION") || System.get_env("AWS_DEFAULT_REGION") || "us-east-1",
+  s3_bucket: System.get_env("CASCADE_S3_BUCKET") || "cascade-artifacts"

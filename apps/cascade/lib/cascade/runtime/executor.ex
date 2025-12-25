@@ -25,10 +25,10 @@ defmodule Cascade.Runtime.Executor do
   end
 
   @doc """
-  Dispatches a task to an available worker.
+  Dispatches a task to an available worker with optional context.
   """
-  def dispatch_task(job_id, task_id, task_config) do
-    GenServer.cast(__MODULE__, {:dispatch_task, job_id, task_id, task_config})
+  def dispatch_task(job_id, task_id, task_config, task_context \\ %{}) do
+    GenServer.cast(__MODULE__, {:dispatch_task, job_id, task_id, task_config, task_context})
   end
 
   ## Server Callbacks
@@ -41,21 +41,20 @@ defmodule Cascade.Runtime.Executor do
   end
 
   @impl true
-  def handle_cast({:dispatch_task, job_id, task_id, task_config}, state) do
-    # Select a worker
+  def handle_cast({:dispatch_task, job_id, task_id, task_config, task_context}, state) do
+    # Select a worker (for Phase 1, broadcasts to all workers on this node)
     worker_node = select_worker(task_config)
 
-    # Assign task in StateManager
-    StateManager.assign_task(job_id, task_id, worker_node)
-
-    # Build task execution payload
+    # Build task execution payload with context
     task_payload = %{
       job_id: job_id,
       task_id: task_id,
-      task_config: task_config
+      task_config: task_config,
+      context: task_context
     }
 
     # Send task to worker via PubSub
+    # Workers will claim the task atomically via StateManager.claim_task
     Events.send_to_worker(worker_node, {:execute_task, task_payload})
 
     Logger.info("Dispatched task: job_id=#{job_id}, task_id=#{task_id}, worker=#{worker_node}")
