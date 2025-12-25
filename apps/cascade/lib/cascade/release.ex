@@ -51,6 +51,13 @@ defmodule Cascade.Release do
   end
 
   defp start_repos do
+    # Ensure required apps are started
+    Application.ensure_all_started(:ssl)
+    Application.ensure_all_started(:postgrex)
+    Application.ensure_all_started(:ecto)
+    Application.ensure_all_started(:ecto_sql)
+    Application.ensure_all_started(:telemetry)
+
     for repo <- repos() do
       {:ok, _} = repo.start_link(pool_size: 2)
     end
