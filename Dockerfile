@@ -23,8 +23,11 @@ RUN mix deps.get --only prod
 RUN mix deps.compile
 
 COPY config/config.exs config/prod.exs config/runtime.exs config/
-COPY priv priv/
-COPY assets assets/
+
+# Copy the umbrella apps
+COPY apps apps/
+
+COPY apps/cascade_web/assets apps/cascade_web/assets/
 # Copy application code
 
 RUN mix assets.deploy || true
