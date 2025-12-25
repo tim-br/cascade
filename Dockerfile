@@ -31,14 +31,11 @@ RUN mix compile
 RUN mix release
 
 
-# Runtime stage - use same Debian base as builder for library compatibility
-FROM debian:bookworm-slim
+# Runtime stage - use erlang slim image to match builder's GLIBC version
+FROM erlang:28-slim
 
 RUN apt-get update && \
     apt-get install -y \
-    openssl \
-    libssl3 \
-    libncurses6 \
     locales \
     ca-certificates \
     && rm -rf /var/lib/apt/lists/*
