@@ -31,8 +31,8 @@ RUN mix compile
 RUN mix release
 
 
-# Runtime stage
-FROM debian:bookworm-slim
+# Runtime stage - use Ubuntu 24.04 which has GLIBC 2.39
+FROM ubuntu:24.04
 
 RUN apt-get update && \
     apt-get install -y \
@@ -58,4 +58,4 @@ EXPOSE 4000
 
 ENV HOME=/app
 
-CMD ["bin/init", "foreground"]
+CMD ["bin/init", "start"]
