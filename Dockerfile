@@ -22,13 +22,20 @@ COPY mix.exs mix.lock ./
 RUN mix deps.get --only prod
 RUN mix deps.compile
 
+COPY config/config.exs config/prod.exs config/runtime.exs config/
+COPY priv priv/
+COPY assets assets/
 # Copy application code
+
+RUN mix assets.deploy || true
+
 COPY . .
 
 # Compile application and build release
 RUN mix compile
-RUN mix assets.deploy || true
+
 RUN mix release
+
 
 # Runtime stage
 FROM debian:bookworm-slim
