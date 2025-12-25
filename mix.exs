@@ -8,7 +8,13 @@ defmodule Cascade.Umbrella.MixProject do
       start_permanent: Mix.env() == :prod,
       deps: deps(),
       aliases: aliases(),
-      listeners: [Phoenix.CodeReloader]
+      listeners: [Phoenix.CodeReloader],
+      releases: [
+        init: [
+          version: "0.0.1",
+          applications: [cascade: :permanent, cascade_web: :permanent]
+        ]
+      ]
     ]
   end
 

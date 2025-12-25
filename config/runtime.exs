@@ -40,13 +40,20 @@ if config_env() == :prod do
       You can generate one by calling: mix phx.gen.secret
       """
 
+  host = System.get_env("PHX_HOST") || "example.com"
+
+  url_port = if host == "localhost", do: 4000, else: 80
+
   config :cascade_web, CascadeWeb.Endpoint,
+    # 80 for generated URLs (behind proxy in prod)
+    url: [host: host, port: url_port],
     http: [
       # Enable IPv6 and bind on all interfaces.
       # Set it to  {0, 0, 0, 0, 0, 0, 0, 1} for local network only access.
       ip: {0, 0, 0, 0, 0, 0, 0, 0}
     ],
-    secret_key_base: secret_key_base
+    secret_key_base: secret_key_base,
+    server: true
 
   # ## Using releases
   #
