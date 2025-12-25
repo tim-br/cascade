@@ -46,7 +46,7 @@ defmodule CascadeWeb.DAGDetailLive do
   end
 
   @impl true
-  def handle_event("update_context", %{"value" => value}, socket) do
+  def handle_event("update_context", %{"context" => value}, socket) do
     {:noreply, assign(socket, :context_json, value)}
   end
 

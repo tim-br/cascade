@@ -111,12 +111,12 @@ defmodule Cascade.Runtime.TaskExecutors.LambdaExecutor do
           {:ok, location} ->
             Logger.info("LambdaExecutor: Stored result to #{location}")
 
-            # Return reference to S3 location instead of full result
-            {:ok, %{
+            # Return both S3 metadata AND the actual result data
+            {:ok, Map.merge(result, %{
               "result_location" => location,
               "result_s3_key" => s3_key,
               "result_size_bytes" => byte_size(json_data)
-            }}
+            })}
 
           {:error, reason} ->
             error_msg = "Failed to upload result to S3: #{inspect(reason)}"
