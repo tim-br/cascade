@@ -1,5 +1,5 @@
 # Production Phoenix Dockerfile
-FROM elixir:1.19.4-otp-27 AS builder
+FROM elixir:1.19.4-otp-28 AS builder
 
 # Install build dependencies
 RUN apt-get update && \
