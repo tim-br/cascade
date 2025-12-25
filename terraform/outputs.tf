@@ -39,3 +39,23 @@ output "export_commands" {
     aws sts get-caller-identity
   EOT
 }
+
+output "alb_dns_name" {
+  description = "DNS name of the Application Load Balancer"
+  value       = aws_lb.cascade.dns_name
+}
+
+output "application_url" {
+  description = "URL to access the Cascade application"
+  value       = "https://${var.domain_name}"
+}
+
+output "ecs_cluster_name" {
+  description = "Name of the ECS cluster"
+  value       = aws_ecs_cluster.cascade.name
+}
+
+output "ecs_service_name" {
+  description = "Name of the ECS service"
+  value       = aws_ecs_service.cascade.name
+}
