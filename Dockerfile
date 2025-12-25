@@ -17,26 +17,17 @@ WORKDIR /app
 # Set build ENV
 ENV MIX_ENV=prod
 
-# Copy mix files and fetch dependencies
-COPY mix.exs mix.lock ./
-RUN mix deps.get --only prod
-RUN mix deps.compile
-
-COPY config/config.exs config/prod.exs config/runtime.exs config/
-
-# Copy the umbrella apps
-COPY apps apps/
-
-COPY apps/cascade_web/assets apps/cascade_web/assets/
-# Copy application code
-
-RUN mix assets.deploy || true
 
 COPY . .
 
+# Copy mix files and fetch dependencies
+RUN mix deps.get --only prod
+RUN mix deps.compile
+
+
+RUN mix assets.deploy || true
 # Compile application and build release
 RUN mix compile
-
 RUN mix release
 
 
