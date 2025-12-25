@@ -58,6 +58,9 @@ defmodule Cascade.DSL.Compiler do
     |> Map.new()
   end
 
+  defp normalize_value(value) when is_boolean(value), do: value
+  defp normalize_value(nil), do: nil
+
   defp normalize_value(value) when is_atom(value) do
     if Atom.to_string(value) |> String.starts_with?("Elixir.") do
       value

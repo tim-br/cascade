@@ -141,8 +141,15 @@ defmodule Cascade.Runtime.Scheduler do
     # Update task status
     StateManager.update_task_status(job_id, task_id, :failed, error: error)
 
-    # For now, we'll continue execution even if a task fails
-    # TODO: Implement failure handling policies (fail-fast, ignore, retry)
+    # Fail the entire job when any task fails
+    Logger.error("Failing job #{job_id} due to task failure")
+    StateManager.update_job_status(job_id, :failed)
+
+    # Publish job failure event
+    Events.publish_job_event(job_id, :failed, %{
+      failed_task: task_id,
+      error: error
+    })
 
     {:noreply, state}
   end

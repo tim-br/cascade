@@ -119,14 +119,15 @@ defmodule Cascade.Runtime.TaskExecutors.LambdaExecutor do
             }}
 
           {:error, reason} ->
-            Logger.error("LambdaExecutor: Failed to store result to S3: #{inspect(reason)}")
-            # Fall back to returning result directly
-            {:ok, result}
+            error_msg = "Failed to upload result to S3: #{inspect(reason)}"
+            Logger.error("LambdaExecutor: #{error_msg}")
+            {:error, error_msg}
         end
 
       {:error, reason} ->
-        Logger.error("LambdaExecutor: Failed to encode result as JSON: #{inspect(reason)}")
-        {:ok, result}
+        error_msg = "Failed to encode result as JSON: #{inspect(reason)}"
+        Logger.error("LambdaExecutor: #{error_msg}")
+        {:error, error_msg}
     end
   end
 
