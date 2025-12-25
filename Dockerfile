@@ -31,12 +31,13 @@ RUN mix compile
 RUN mix release
 
 
-# Runtime stage - use Ubuntu 24.04 which has GLIBC 2.39
-FROM ubuntu:24.04
+# Runtime stage - use same Debian base as builder for library compatibility
+FROM debian:bookworm-slim
 
 RUN apt-get update && \
     apt-get install -y \
     openssl \
+    libssl3 \
     libncurses6 \
     locales \
     ca-certificates \
