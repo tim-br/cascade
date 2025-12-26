@@ -123,8 +123,17 @@ defmodule Cascade.Runtime.Scheduler do
         if job_complete?(job_state) do
           complete_job(job_id, job_state)
         else
-          # Dispatch next ready tasks
-          dispatch_ready_tasks(job_id, job_state.dag_definition)
+          if all_remaining_tasks_blocked?(job_state) do
+            Logger.error(
+              "All remaining tasks blocked for job #{job_id} - marking blocked tasks and failing job"
+            )
+
+            mark_blocked_tasks_as_upstream_failed(job_id, job_state)
+            complete_job(job_id, job_state)
+          else
+            # Dispatch next ready tasks
+            dispatch_ready_tasks(job_id, job_state.dag_definition)
+          end
         end
 
       {:error, _} ->
@@ -206,15 +215,6 @@ defmodule Cascade.Runtime.Scheduler do
                   # Note: We don't dispatch new tasks here because failed tasks don't have success outputs
                   # Downstream tasks that depend on the failed task will never become ready
                   # But parallel independent tasks will continue
-                end
-
-                if all_remaining_tasks_blocked?(updated_job_state) do
-                  Logger.error(
-                    "All remaining tasks blocked for job #{job_id} - marking blocked tasks and failing job"
-                  )
-
-                  mark_blocked_tasks_as_upstream_failed(job_id, updated_job_state)
-                  complete_job(job_id, updated_job_state)
                 end
               end
 
