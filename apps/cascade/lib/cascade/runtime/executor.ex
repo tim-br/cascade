@@ -15,7 +15,6 @@ defmodule Cascade.Runtime.Executor do
   use GenServer
   require Logger
 
-  alias Cascade.Runtime.StateManager
   alias Cascade.Events
 
   ## Client API

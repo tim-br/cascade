@@ -9,7 +9,6 @@ defmodule Cascade.AWS.LambdaClient do
   """
 
   require Logger
-  alias Cascade.AWS.Config
 
   @default_timeout 300_000  # 5 minutes in milliseconds
 

@@ -6,10 +6,10 @@ defmodule Cascade.Events do
   helper functions for publishing events via Phoenix.PubSub.
   """
 
-  @doc """
-  Event emitted when a job's status changes.
-  """
   defmodule JobEvent do
+    @moduledoc """
+    Event emitted when a job's status changes.
+    """
     @type t :: %__MODULE__{
             job_id: binary(),
             dag_id: binary(),
@@ -21,10 +21,10 @@ defmodule Cascade.Events do
     defstruct [:job_id, :dag_id, :status, :timestamp, :metadata]
   end
 
-  @doc """
-  Event emitted when a task's status changes.
-  """
   defmodule TaskEvent do
+    @moduledoc """
+    Event emitted when a task's status changes.
+    """
     @type t :: %__MODULE__{
             job_id: binary(),
             task_id: String.t(),
@@ -38,10 +38,10 @@ defmodule Cascade.Events do
     defstruct [:job_id, :task_id, :status, :worker_node, :timestamp, :result, :error]
   end
 
-  @doc """
-  Event emitted for worker heartbeats and status updates.
-  """
   defmodule WorkerEvent do
+    @moduledoc """
+    Event emitted for worker heartbeats and status updates.
+    """
     @type t :: %__MODULE__{
             node: atom(),
             status: atom(),
