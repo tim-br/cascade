@@ -132,7 +132,7 @@ defmodule Cascade.Examples.LiteraryAnalysisDAG do
         payload: %{
           input_s3_key: "literary-analysis/{{job_id}}/book1_chapters.json",
           # 30% chance to fail
-          failure_rate: 1,
+          failure_rate: 0.3,
           model: "sentiment-v2"
         }
       ],
@@ -147,7 +147,7 @@ defmodule Cascade.Examples.LiteraryAnalysisDAG do
         payload: %{
           input_s3_key: "literary-analysis/{{job_id}}/book2_chapters.json",
           # 15% chance to fail
-          failure_rate: 0.0,
+          failure_rate: 0.15,
           model: "sentiment-v2"
         }
       ],
