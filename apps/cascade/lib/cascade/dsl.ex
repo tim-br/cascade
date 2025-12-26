@@ -73,7 +73,8 @@ defmodule Cascade.DSL do
             artifact_key: Keyword.get(task_opts, :artifact_key),
             retry: Keyword.get(task_opts, :retry),
             store_output_to_s3: Keyword.get(task_opts, :store_output_to_s3),
-            output_s3_key: Keyword.get(task_opts, :output_s3_key)
+            output_s3_key: Keyword.get(task_opts, :output_s3_key),
+            payload: Keyword.get(task_opts, :payload)
           }
 
           {task_id, task_config}
