@@ -141,37 +141,24 @@ defmodule Cascade.Runtime.Scheduler do
     # Update task status
     StateManager.update_task_status(job_id, task_id, :failed, error: error)
 
-    # Fail the entire job when any task fails
-    Logger.error("Failing job #{job_id} due to task failure")
-
-    # Get job state to extract dag_id
+    # Check if job is complete (all tasks finished)
     case StateManager.get_job_state(job_id) do
       {:ok, job_state} ->
-        # Update Job in Postgres
-        job = Workflows.get_job!(job_id)
-        Workflows.update_job(job, %{
-          status: :failed,
-          completed_at: DateTime.utc_now()
-        })
+        if job_complete?(job_state) do
+          # All tasks are done, finalize the job
+          Logger.info("Job #{job_id} complete with failures")
+          complete_job(job_id, job_state)
+        else
+          # Job still has pending/running tasks, let them continue
+          Logger.info("Task #{task_id} failed, but job #{job_id} has remaining tasks - continuing execution")
 
-        # Publish job failure event
-        event = %Events.JobEvent{
-          job_id: job_id,
-          dag_id: job_state.dag_id,
-          status: :failed,
-          timestamp: DateTime.utc_now(),
-          metadata: %{
-            failed_task: task_id,
-            error: error
-          }
-        }
-        Events.publish_job_event(event)
-
-        # Remove from active state
-        StateManager.remove_job_state(job_id)
+          # Note: We don't dispatch new tasks here because failed tasks don't have success outputs
+          # Downstream tasks that depend on the failed task will never become ready
+          # But parallel independent tasks will continue
+        end
 
       {:error, _} ->
-        Logger.warning("Cannot fail job, job state not found for job_id=#{job_id}")
+        Logger.warning("Job state not found for job_id=#{job_id}")
     end
 
     {:noreply, state}
