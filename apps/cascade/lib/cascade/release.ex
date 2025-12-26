@@ -23,22 +23,40 @@ defmodule Cascade.Release do
   end
 
   @doc """
-  Load the cloud-only DAG (for production deployment).
+  Load all cloud-only DAGs (for production deployment).
   """
   def load_dags do
     load_app()
     start_repos()
 
-    IO.puts("Loading cloud-only DAG...")
+    IO.puts("Loading cloud-only DAGs...")
 
-    case Cascade.Examples.DAGLoader.load_cloud_only_dag() do
+    # Load cloud test pipeline
+    result1 = case Cascade.Examples.DAGLoader.load_cloud_only_dag() do
       {:ok, dag} ->
         IO.puts("✓ Loaded DAG: #{dag.name}")
         :ok
 
       {:error, reason} ->
-        IO.puts("✗ Error loading DAG: #{inspect(reason)}")
+        IO.puts("✗ Error loading cloud_test_pipeline: #{inspect(reason)}")
         {:error, reason}
+    end
+
+    # Load literary analysis pipeline
+    result2 = case Cascade.Examples.DAGLoader.load_literary_analysis_dag() do
+      {:ok, dag} ->
+        IO.puts("✓ Loaded DAG: #{dag.name}")
+        :ok
+
+      {:error, reason} ->
+        IO.puts("✗ Error loading literary_analysis_pipeline: #{inspect(reason)}")
+        {:error, reason}
+    end
+
+    # Return error if any failed
+    case {result1, result2} do
+      {:ok, :ok} -> :ok
+      _ -> {:error, "One or more DAGs failed to load"}
     end
   end
 
