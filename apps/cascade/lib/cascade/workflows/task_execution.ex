@@ -11,7 +11,7 @@ defmodule Cascade.Workflows.TaskExecution do
   @primary_key {:id, :binary_id, autogenerate: true}
   @foreign_key_type :binary_id
 
-  @statuses [:pending, :queued, :running, :success, :failed, :skipped]
+  @statuses [:pending, :queued, :running, :success, :failed, :upstream_failed, :skipped]
 
   schema "task_executions" do
     field :task_id, :string

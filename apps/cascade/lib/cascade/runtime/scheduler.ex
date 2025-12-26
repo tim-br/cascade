@@ -152,7 +152,8 @@ defmodule Cascade.Runtime.Scheduler do
           # Check if there are any tasks that can still run
           # If all remaining tasks are blocked, fail the job immediately
           if all_remaining_tasks_blocked?(job_state) do
-            Logger.error("All remaining tasks blocked for job #{job_id} - failing job immediately")
+            Logger.error("All remaining tasks blocked for job #{job_id} - marking blocked tasks and failing job")
+            mark_blocked_tasks_as_upstream_failed(job_id, job_state)
             complete_job(job_id, job_state)
           else
             # Job still has runnable tasks, let them continue
@@ -286,7 +287,37 @@ defmodule Cascade.Runtime.Scheduler do
     end
   end
 
+  defp mark_blocked_tasks_as_upstream_failed(job_id, job_state) do
+    # Get all pending tasks - these are blocked and will never run
+    blocked_tasks = MapSet.to_list(job_state.pending_tasks)
+
+    Logger.info("Marking #{length(blocked_tasks)} tasks as upstream_failed for job #{job_id}")
+
+    # Update each blocked task in Postgres
+    Enum.each(blocked_tasks, fn task_id ->
+      case Workflows.list_task_executions_for_job(job_id) do
+        task_executions ->
+          task_execution = Enum.find(task_executions, fn te -> te.task_id == task_id end)
+
+          if task_execution && task_execution.status == :pending do
+            Workflows.update_task_execution(task_execution, %{
+              status: :upstream_failed,
+              completed_at: DateTime.utc_now()
+            })
+
+            Logger.debug("Marked task #{task_id} as upstream_failed")
+          end
+      end
+    end)
+  end
+
   defp complete_job(job_id, job_state) do
+    # Mark any remaining pending tasks as upstream_failed
+    # (these tasks never ran because their dependencies failed)
+    if MapSet.size(job_state.pending_tasks) > 0 do
+      mark_blocked_tasks_as_upstream_failed(job_id, job_state)
+    end
+
     # Determine final status
     final_status = if MapSet.size(job_state.failed_tasks) > 0, do: :failed, else: :success
 
