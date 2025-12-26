@@ -36,13 +36,16 @@ def lambda_handler(event, context):
     task_id = event.get('task_id', 'unknown')
     event_context = event.get('context', {})
     config = event.get('config', {})
+    # Payload is nested in config['config']['payload']
+    task_config = config.get('config', {})
+    payload = task_config.get('payload', {})
 
     # Get input S3 keys
-    book1_word_freq = event_context.get('book1_word_freq', '')
-    book2_word_freq = event_context.get('book2_word_freq', '')
-    book1_sentiment = event_context.get('book1_sentiment', '')
-    book2_sentiment = event_context.get('book2_sentiment', '')
-    generate_viz = event_context.get('generate_visualizations', config.get('generate_visualizations', False))
+    book1_word_freq = event_context.get('book1_word_freq') or payload.get('book1_word_freq', '')
+    book2_word_freq = event_context.get('book2_word_freq') or payload.get('book2_word_freq', '')
+    book1_sentiment = event_context.get('book1_sentiment') or payload.get('book1_sentiment', '')
+    book2_sentiment = event_context.get('book2_sentiment') or payload.get('book2_sentiment', '')
+    generate_viz = event_context.get('generate_visualizations', payload.get('generate_visualizations', False))
 
     print(f"Comparing books for job {job_id}, task {task_id}")
     print(f"Inputs: word_freq_1={book1_word_freq}, word_freq_2={book2_word_freq}")

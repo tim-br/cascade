@@ -34,10 +34,13 @@ def lambda_handler(event, context):
     task_id = event.get('task_id', 'unknown')
     event_context = event.get('context', {})
     config = event.get('config', {})
+    # Payload is nested in config['config']['payload']
+    task_config = config.get('config', {})
+    payload = task_config.get('payload', {})
 
-    # Get book ID from context or config (context takes precedence)
-    book_id = event_context.get('book_id') or config.get('book_id', '1342')
-    source = event_context.get('source', 'gutenberg')
+    # Get book ID from context or payload (context takes precedence)
+    book_id = event_context.get('book_id') or payload.get('book_id', '1342')
+    source = event_context.get('source', payload.get('source', 'gutenberg'))
 
     print(f"Fetching book {book_id} from {source} for job {job_id}, task {task_id}")
 

@@ -36,10 +36,13 @@ def lambda_handler(event, context):
     task_id = event.get('task_id', 'unknown')
     event_context = event.get('context', {})
     config = event.get('config', {})
+    # Payload is nested in config['config']['payload']
+    task_config = config.get('config', {})
+    payload = task_config.get('payload', {})
 
-    input_s3_key = event_context.get('input_s3_key') or config.get('input_s3_key', '')
-    top_n = int(event_context.get('top_n', config.get('top_n', 500)))
-    analysis_depth = event_context.get('analysis_depth', config.get('analysis_depth', 'basic'))
+    input_s3_key = event_context.get('input_s3_key') or payload.get('input_s3_key', '')
+    top_n = int(event_context.get('top_n', payload.get('top_n', 500)))
+    analysis_depth = event_context.get('analysis_depth', payload.get('analysis_depth', 'basic'))
 
     print(f"Analyzing word frequency from {input_s3_key} for job {job_id}, task {task_id}")
     print(f"Parameters: top_n={top_n}, analysis_depth={analysis_depth}")

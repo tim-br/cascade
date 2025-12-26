@@ -96,7 +96,13 @@ resource "aws_iam_role_policy" "ecs_task_lambda_policy" {
         ]
         Resource = [
           aws_lambda_function.data_processor.arn,
-          aws_lambda_function.aggregator.arn
+          aws_lambda_function.aggregator.arn,
+          # Literary analysis pipeline Lambdas
+          aws_lambda_function.fetch_book.arn,
+          aws_lambda_function.extract_chapters.arn,
+          aws_lambda_function.word_frequency.arn,
+          aws_lambda_function.sentiment_analysis.arn,  # Has 30% and 15% failure rates built-in
+          aws_lambda_function.compare_books.arn
         ]
       }
     ]

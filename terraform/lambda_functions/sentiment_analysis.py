@@ -38,10 +38,13 @@ def lambda_handler(event, context):
     task_id = event.get('task_id', 'unknown')
     event_context = event.get('context', {})
     config = event.get('config', {})
+    # Payload is nested in config['config']['payload']
+    task_config = config.get('config', {})
+    payload = task_config.get('payload', {})
 
-    input_s3_key = event_context.get('input_s3_key') or config.get('input_s3_key', '')
-    failure_rate = float(event_context.get('failure_rate', config.get('failure_rate', 0.0)))
-    model = event_context.get('model', config.get('model', 'sentiment-v1'))
+    input_s3_key = event_context.get('input_s3_key') or payload.get('input_s3_key', '')
+    failure_rate = float(event_context.get('failure_rate', payload.get('failure_rate', 0.0)))
+    model = event_context.get('model', payload.get('model', 'sentiment-v1'))
 
     print(f"Analyzing sentiment from {input_s3_key} for job {job_id}, task {task_id}")
     print(f"Parameters: model={model}, failure_rate={failure_rate}")
