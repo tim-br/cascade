@@ -173,26 +173,33 @@ defmodule Cascade.Runtime.Scheduler do
           # Update task status to failed
           StateManager.update_task_status(job_id, task_id, :failed, error: error)
 
-          # Check if job is complete (all tasks finished)
-          if job_complete?(job_state) do
-            # All tasks are done, finalize the job
-            Logger.info("Job #{job_id} complete with failures")
-            complete_job(job_id, job_state)
-          else
-            # Check if there are any tasks that can still run
-            # If all remaining tasks are blocked, fail the job immediately
-            if all_remaining_tasks_blocked?(job_state) do
-              Logger.error("All remaining tasks blocked for job #{job_id} - marking blocked tasks and failing job")
-              mark_blocked_tasks_as_upstream_failed(job_id, job_state)
-              complete_job(job_id, job_state)
-            else
-              # Job still has runnable tasks, let them continue
-              Logger.info("Task #{task_id} failed, but job #{job_id} has remaining runnable tasks - continuing execution")
+          # Re-fetch job state after updating task status
+          case StateManager.get_job_state(job_id) do
+            {:ok, updated_job_state} ->
+              # Check if job is complete (all tasks finished)
+              if job_complete?(updated_job_state) do
+                # All tasks are done, finalize the job
+                Logger.info("Job #{job_id} complete with failures")
+                complete_job(job_id, updated_job_state)
+              else
+                # Check if there are any tasks that can still run
+                # If all remaining tasks are blocked, fail the job immediately
+                if all_remaining_tasks_blocked?(updated_job_state) do
+                  Logger.error("All remaining tasks blocked for job #{job_id} - marking blocked tasks and failing job")
+                  mark_blocked_tasks_as_upstream_failed(job_id, updated_job_state)
+                  complete_job(job_id, updated_job_state)
+                else
+                  # Job still has runnable tasks, let them continue
+                  Logger.info("Task #{task_id} failed, but job #{job_id} has remaining runnable tasks - continuing execution")
 
-              # Note: We don't dispatch new tasks here because failed tasks don't have success outputs
-              # Downstream tasks that depend on the failed task will never become ready
-              # But parallel independent tasks will continue
-            end
+                  # Note: We don't dispatch new tasks here because failed tasks don't have success outputs
+                  # Downstream tasks that depend on the failed task will never become ready
+                  # But parallel independent tasks will continue
+                end
+              end
+
+            {:error, _} ->
+              Logger.error("Failed to get updated job state for job_id=#{job_id}")
           end
         end
 
