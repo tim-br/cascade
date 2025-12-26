@@ -149,12 +149,19 @@ defmodule Cascade.Runtime.Scheduler do
           Logger.info("Job #{job_id} complete with failures")
           complete_job(job_id, job_state)
         else
-          # Job still has pending/running tasks, let them continue
-          Logger.info("Task #{task_id} failed, but job #{job_id} has remaining tasks - continuing execution")
+          # Check if there are any tasks that can still run
+          # If all remaining tasks are blocked, fail the job immediately
+          if all_remaining_tasks_blocked?(job_state) do
+            Logger.error("All remaining tasks blocked for job #{job_id} - failing job immediately")
+            complete_job(job_id, job_state)
+          else
+            # Job still has runnable tasks, let them continue
+            Logger.info("Task #{task_id} failed, but job #{job_id} has remaining runnable tasks - continuing execution")
 
-          # Note: We don't dispatch new tasks here because failed tasks don't have success outputs
-          # Downstream tasks that depend on the failed task will never become ready
-          # But parallel independent tasks will continue
+            # Note: We don't dispatch new tasks here because failed tasks don't have success outputs
+            # Downstream tasks that depend on the failed task will never become ready
+            # But parallel independent tasks will continue
+          end
         end
 
       {:error, _} ->
@@ -257,6 +264,26 @@ defmodule Cascade.Runtime.Scheduler do
 
     # Job is complete when all tasks are either completed or failed
     completed_or_failed == all_tasks_count and map_size(job_state.running_tasks) == 0
+  end
+
+  defp all_remaining_tasks_blocked?(job_state) do
+    # If there are running tasks, they might complete and unblock pending tasks
+    if map_size(job_state.running_tasks) > 0 do
+      false
+    else
+      # Check if any pending tasks can become ready
+      completed_tasks = MapSet.to_list(job_state.completed_tasks)
+      failed_tasks = MapSet.to_list(job_state.failed_tasks)
+
+      ready_tasks = Validator.get_ready_tasks(
+        job_state.dag_definition,
+        completed_tasks,
+        failed_tasks
+      )
+
+      # If no tasks are ready and we have pending tasks, they're all blocked
+      ready_tasks == [] and MapSet.size(job_state.pending_tasks) > 0
+    end
   end
 
   defp complete_job(job_id, job_state) do
