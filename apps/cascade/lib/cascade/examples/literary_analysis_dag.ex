@@ -29,9 +29,11 @@ defmodule Cascade.Examples.LiteraryAnalysisDAG do
 
   use Cascade.DSL
 
-  dag "literary_analysis_pipeline",
-    description: "Complex literary analysis pipeline with parallel processing and intentional failures",
-    schedule: nil,  # Manual trigger only for testing
+  dag("literary_analysis_pipeline",
+    description:
+      "Complex literary analysis pipeline with parallel processing and intentional failures",
+    # Manual trigger only for testing
+    schedule: nil,
     tasks: [
       # Stage 1: Fetch books from Project Gutenberg (parallel)
       fetch_book_1: [
@@ -39,7 +41,8 @@ defmodule Cascade.Examples.LiteraryAnalysisDAG do
         function_name: "cascade-fetch-book",
         timeout: 120,
         memory: 512,
-        retry: 3,  # Retry up to 3 times on failure
+        # Retry up to 3 times on failure
+        retry: 3,
         store_output_to_s3: true,
         output_s3_key: "literary-analysis/{{job_id}}/book1_raw.txt",
         payload: %{
@@ -47,7 +50,6 @@ defmodule Cascade.Examples.LiteraryAnalysisDAG do
           source: "gutenberg"
         }
       ],
-
       fetch_book_2: [
         type: :lambda,
         function_name: "cascade-fetch-book",
@@ -74,7 +76,6 @@ defmodule Cascade.Examples.LiteraryAnalysisDAG do
           input_s3_key: "literary-analysis/{{job_id}}/book1_raw.txt"
         }
       ],
-
       extract_chapters_2: [
         type: :lambda,
         function_name: "cascade-extract-chapters",
@@ -103,7 +104,6 @@ defmodule Cascade.Examples.LiteraryAnalysisDAG do
           analysis_depth: "{{analysis_depth}}"
         }
       ],
-
       word_frequency_2: [
         type: :lambda,
         function_name: "cascade-word-frequency",
@@ -131,11 +131,11 @@ defmodule Cascade.Examples.LiteraryAnalysisDAG do
         depends_on: [:extract_chapters_1],
         payload: %{
           input_s3_key: "literary-analysis/{{job_id}}/book1_chapters.json",
-          failure_rate: 0.3,  # 30% chance to fail
+          # 30% chance to fail
+          failure_rate: 1,
           model: "sentiment-v2"
         }
       ],
-
       sentiment_analysis_2: [
         type: :lambda,
         function_name: "cascade-sentiment-analysis",
@@ -146,7 +146,8 @@ defmodule Cascade.Examples.LiteraryAnalysisDAG do
         depends_on: [:extract_chapters_2],
         payload: %{
           input_s3_key: "literary-analysis/{{job_id}}/book2_chapters.json",
-          failure_rate: 0.15,  # 15% chance to fail
+          # 15% chance to fail
+          failure_rate: 0.0,
           model: "sentiment-v2"
         }
       ],
@@ -159,7 +160,12 @@ defmodule Cascade.Examples.LiteraryAnalysisDAG do
         memory: 1024,
         store_output_to_s3: true,
         output_s3_key: "literary-analysis/{{job_id}}/comparison_report.json",
-        depends_on: [:word_frequency_1, :word_frequency_2, :sentiment_analysis_1, :sentiment_analysis_2],
+        depends_on: [
+          :word_frequency_1,
+          :word_frequency_2,
+          :sentiment_analysis_1,
+          :sentiment_analysis_2
+        ],
         payload: %{
           book1_word_freq: "literary-analysis/{{job_id}}/book1_word_freq.json",
           book2_word_freq: "literary-analysis/{{job_id}}/book2_word_freq.json",
@@ -169,4 +175,5 @@ defmodule Cascade.Examples.LiteraryAnalysisDAG do
         }
       ]
     ]
+  )
 end
