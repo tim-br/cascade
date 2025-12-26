@@ -138,30 +138,61 @@ defmodule Cascade.Runtime.Scheduler do
   def handle_cast({:task_failed, job_id, task_id, error}, state) do
     Logger.error("Task failed: job_id=#{job_id}, task_id=#{task_id}, error=#{inspect(error)}")
 
-    # Update task status
-    StateManager.update_task_status(job_id, task_id, :failed, error: error)
-
-    # Check if job is complete (all tasks finished)
+    # Check if we should retry this task
     case StateManager.get_job_state(job_id) do
       {:ok, job_state} ->
-        if job_complete?(job_state) do
-          # All tasks are done, finalize the job
-          Logger.info("Job #{job_id} complete with failures")
-          complete_job(job_id, job_state)
+        # Get task config to check retry settings
+        task_config = find_task_config(job_state.dag_definition, task_id)
+        max_retries = task_config["config"]["retry"] || 0
+
+        # Get current retry count from Postgres
+        task_execution = get_task_execution(job_id, task_id)
+        current_retry_count = task_execution.retry_count
+
+        if current_retry_count < max_retries do
+          # Retry the task
+          new_retry_count = current_retry_count + 1
+          Logger.warning("Retrying task #{task_id} (attempt #{new_retry_count + 1}/#{max_retries + 1}) for job #{job_id}")
+
+          # Update retry count in Postgres
+          Workflows.update_task_execution(task_execution, %{
+            retry_count: new_retry_count,
+            error: "Attempt #{current_retry_count + 1} failed: #{error}. Retrying..."
+          })
+
+          # Re-dispatch the task
+          completed_tasks = MapSet.to_list(job_state.completed_tasks)
+          task_context = build_task_context(job_id, task_id, job_state.dag_definition, completed_tasks)
+          Executor.dispatch_task(job_id, task_id, task_config, task_context)
         else
-          # Check if there are any tasks that can still run
-          # If all remaining tasks are blocked, fail the job immediately
-          if all_remaining_tasks_blocked?(job_state) do
-            Logger.error("All remaining tasks blocked for job #{job_id} - marking blocked tasks and failing job")
-            mark_blocked_tasks_as_upstream_failed(job_id, job_state)
+          # No more retries, mark as failed
+          if max_retries > 0 do
+            Logger.error("Task #{task_id} failed after #{max_retries} retries for job #{job_id}")
+          end
+
+          # Update task status to failed
+          StateManager.update_task_status(job_id, task_id, :failed, error: error)
+
+          # Check if job is complete (all tasks finished)
+          if job_complete?(job_state) do
+            # All tasks are done, finalize the job
+            Logger.info("Job #{job_id} complete with failures")
             complete_job(job_id, job_state)
           else
-            # Job still has runnable tasks, let them continue
-            Logger.info("Task #{task_id} failed, but job #{job_id} has remaining runnable tasks - continuing execution")
+            # Check if there are any tasks that can still run
+            # If all remaining tasks are blocked, fail the job immediately
+            if all_remaining_tasks_blocked?(job_state) do
+              Logger.error("All remaining tasks blocked for job #{job_id} - marking blocked tasks and failing job")
+              mark_blocked_tasks_as_upstream_failed(job_id, job_state)
+              complete_job(job_id, job_state)
+            else
+              # Job still has runnable tasks, let them continue
+              Logger.info("Task #{task_id} failed, but job #{job_id} has remaining runnable tasks - continuing execution")
 
-            # Note: We don't dispatch new tasks here because failed tasks don't have success outputs
-            # Downstream tasks that depend on the failed task will never become ready
-            # But parallel independent tasks will continue
+              # Note: We don't dispatch new tasks here because failed tasks don't have success outputs
+              # Downstream tasks that depend on the failed task will never become ready
+              # But parallel independent tasks will continue
+            end
           end
         end
 
@@ -215,6 +246,11 @@ defmodule Cascade.Runtime.Scheduler do
   defp find_task_config(dag_definition, task_id) do
     dag_definition["nodes"]
     |> Enum.find(fn node -> node["id"] == task_id end)
+  end
+
+  defp get_task_execution(job_id, task_id) do
+    task_executions = Workflows.list_task_executions_for_job(job_id)
+    Enum.find(task_executions, fn te -> te.task_id == task_id end)
   end
 
   defp build_task_context(job_id, task_id, dag_definition, completed_tasks) do

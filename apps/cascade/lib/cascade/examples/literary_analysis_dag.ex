@@ -39,6 +39,7 @@ defmodule Cascade.Examples.LiteraryAnalysisDAG do
         function_name: "cascade-fetch-book",
         timeout: 120,
         memory: 512,
+        retry: 3,  # Retry up to 3 times on failure
         store_output_to_s3: true,
         output_s3_key: "literary-analysis/{{job_id}}/book1_raw.txt",
         payload: %{

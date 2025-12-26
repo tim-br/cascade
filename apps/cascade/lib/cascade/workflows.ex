@@ -192,10 +192,70 @@ defmodule Cascade.Workflows do
   Returns the list of task executions for a specific job.
   """
   def list_task_executions_for_job(job_id) do
-    TaskExecution
-    |> where([te], te.job_id == ^job_id)
-    |> order_by([te], asc: te.inserted_at)
-    |> Repo.all()
+    # Get task executions
+    task_executions =
+      TaskExecution
+      |> where([te], te.job_id == ^job_id)
+      |> Repo.all()
+
+    # Get the job and DAG definition for topological ordering
+    job = get_job!(job_id)
+    dag = get_dag!(job.dag_id)
+
+    # Order tasks topologically based on DAG structure
+    task_order = topological_sort(dag.definition)
+
+    # Sort task executions based on topological order
+    Enum.sort_by(task_executions, fn te ->
+      # Find index in topological order, default to end if not found
+      Enum.find_index(task_order, &(&1 == te.task_id)) || 9999
+    end)
+  end
+
+  # Performs topological sort on DAG definition
+  defp topological_sort(dag_definition) do
+    nodes = dag_definition["nodes"] || []
+    edges = dag_definition["edges"] || []
+
+    # Build adjacency list (task_id -> list of dependent task_ids)
+    dependencies =
+      Enum.reduce(edges, %{}, fn edge, acc ->
+        from = edge["from"]
+        to = edge["to"]
+        Map.update(acc, to, [from], &[from | &1])
+      end)
+
+    # Initialize with tasks that have no dependencies
+    task_ids = Enum.map(nodes, & &1["id"])
+
+    no_deps =
+      task_ids
+      |> Enum.reject(&Map.has_key?(dependencies, &1))
+
+    # Kahn's algorithm for topological sort
+    kahn_sort(task_ids, dependencies, no_deps, [])
+  end
+
+  defp kahn_sort([], _dependencies, _queue, result), do: Enum.reverse(result)
+  defp kahn_sort(_remaining, _dependencies, [], result), do: Enum.reverse(result)
+
+  defp kahn_sort(remaining, dependencies, [current | rest_queue], result) do
+    # Add current to result
+    new_result = [current | result]
+    new_remaining = List.delete(remaining, current)
+
+    # Find tasks that now have all dependencies satisfied
+    newly_ready =
+      Enum.filter(new_remaining, fn task_id ->
+        deps = Map.get(dependencies, task_id, [])
+        # All dependencies are in the result
+        Enum.all?(deps, &(&1 in new_result))
+      end)
+
+    # Add newly ready tasks to queue (avoid duplicates)
+    new_queue = Enum.uniq(rest_queue ++ newly_ready)
+
+    kahn_sort(new_remaining, dependencies, new_queue, new_result)
   end
 
   @doc """
