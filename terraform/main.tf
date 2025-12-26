@@ -135,6 +135,122 @@ resource "aws_lambda_function" "aggregator" {
   }
 }
 
+# Literary Analysis Lambda Functions
+data "archive_file" "fetch_book" {
+  type        = "zip"
+  source_file = "${path.module}/lambda_functions/fetch_book.py"
+  output_path = "${path.module}/lambda_functions/fetch_book.zip"
+}
+
+resource "aws_lambda_function" "fetch_book" {
+  filename         = data.archive_file.fetch_book.output_path
+  function_name    = "cascade-fetch-book"
+  role             = aws_iam_role.lambda_role.arn
+  handler          = "fetch_book.lambda_handler"
+  source_code_hash = data.archive_file.fetch_book.output_base64sha256
+  runtime          = "python3.11"
+  timeout          = 120
+  memory_size      = 512
+
+  environment {
+    variables = {
+      BUCKET_NAME = aws_s3_bucket.cascade_artifacts.id
+    }
+  }
+}
+
+data "archive_file" "extract_chapters" {
+  type        = "zip"
+  source_file = "${path.module}/lambda_functions/extract_chapters.py"
+  output_path = "${path.module}/lambda_functions/extract_chapters.zip"
+}
+
+resource "aws_lambda_function" "extract_chapters" {
+  filename         = data.archive_file.extract_chapters.output_path
+  function_name    = "cascade-extract-chapters"
+  role             = aws_iam_role.lambda_role.arn
+  handler          = "extract_chapters.lambda_handler"
+  source_code_hash = data.archive_file.extract_chapters.output_base64sha256
+  runtime          = "python3.11"
+  timeout          = 90
+  memory_size      = 1024
+
+  environment {
+    variables = {
+      BUCKET_NAME = aws_s3_bucket.cascade_artifacts.id
+    }
+  }
+}
+
+data "archive_file" "word_frequency" {
+  type        = "zip"
+  source_file = "${path.module}/lambda_functions/word_frequency.py"
+  output_path = "${path.module}/lambda_functions/word_frequency.zip"
+}
+
+resource "aws_lambda_function" "word_frequency" {
+  filename         = data.archive_file.word_frequency.output_path
+  function_name    = "cascade-word-frequency"
+  role             = aws_iam_role.lambda_role.arn
+  handler          = "word_frequency.lambda_handler"
+  source_code_hash = data.archive_file.word_frequency.output_base64sha256
+  runtime          = "python3.11"
+  timeout          = 180
+  memory_size      = 1536
+
+  environment {
+    variables = {
+      BUCKET_NAME = aws_s3_bucket.cascade_artifacts.id
+    }
+  }
+}
+
+data "archive_file" "sentiment_analysis" {
+  type        = "zip"
+  source_file = "${path.module}/lambda_functions/sentiment_analysis.py"
+  output_path = "${path.module}/lambda_functions/sentiment_analysis.zip"
+}
+
+resource "aws_lambda_function" "sentiment_analysis" {
+  filename         = data.archive_file.sentiment_analysis.output_path
+  function_name    = "cascade-sentiment-analysis"
+  role             = aws_iam_role.lambda_role.arn
+  handler          = "sentiment_analysis.lambda_handler"
+  source_code_hash = data.archive_file.sentiment_analysis.output_base64sha256
+  runtime          = "python3.11"
+  timeout          = 240
+  memory_size      = 2048
+
+  environment {
+    variables = {
+      BUCKET_NAME = aws_s3_bucket.cascade_artifacts.id
+    }
+  }
+}
+
+data "archive_file" "compare_books" {
+  type        = "zip"
+  source_file = "${path.module}/lambda_functions/compare_books.py"
+  output_path = "${path.module}/lambda_functions/compare_books.zip"
+}
+
+resource "aws_lambda_function" "compare_books" {
+  filename         = data.archive_file.compare_books.output_path
+  function_name    = "cascade-compare-books"
+  role             = aws_iam_role.lambda_role.arn
+  handler          = "compare_books.lambda_handler"
+  source_code_hash = data.archive_file.compare_books.output_base64sha256
+  runtime          = "python3.11"
+  timeout          = 120
+  memory_size      = 1024
+
+  environment {
+    variables = {
+      BUCKET_NAME = aws_s3_bucket.cascade_artifacts.id
+    }
+  }
+}
+
 # CloudWatch Log Groups for Lambda functions
 resource "aws_cloudwatch_log_group" "data_processor" {
   name              = "/aws/lambda/${aws_lambda_function.data_processor.function_name}"
@@ -143,5 +259,30 @@ resource "aws_cloudwatch_log_group" "data_processor" {
 
 resource "aws_cloudwatch_log_group" "aggregator" {
   name              = "/aws/lambda/${aws_lambda_function.aggregator.function_name}"
+  retention_in_days = 7
+}
+
+resource "aws_cloudwatch_log_group" "fetch_book" {
+  name              = "/aws/lambda/${aws_lambda_function.fetch_book.function_name}"
+  retention_in_days = 7
+}
+
+resource "aws_cloudwatch_log_group" "extract_chapters" {
+  name              = "/aws/lambda/${aws_lambda_function.extract_chapters.function_name}"
+  retention_in_days = 7
+}
+
+resource "aws_cloudwatch_log_group" "word_frequency" {
+  name              = "/aws/lambda/${aws_lambda_function.word_frequency.function_name}"
+  retention_in_days = 7
+}
+
+resource "aws_cloudwatch_log_group" "sentiment_analysis" {
+  name              = "/aws/lambda/${aws_lambda_function.sentiment_analysis.function_name}"
+  retention_in_days = 7
+}
+
+resource "aws_cloudwatch_log_group" "compare_books" {
+  name              = "/aws/lambda/${aws_lambda_function.compare_books.function_name}"
   retention_in_days = 7
 }
