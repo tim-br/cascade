@@ -131,6 +131,18 @@ defmodule Cascade.Runtime.StateManager do
   def handle_call({:update_task_status, job_id, task_id, new_status, opts}, _from, state) do
     case :ets.lookup(:active_jobs, job_id) do
       [{^job_id, job_state}] ->
+        # Get old status for logging
+        old_status = cond do
+          MapSet.member?(job_state.pending_tasks, task_id) -> :pending
+          Map.has_key?(job_state.running_tasks, task_id) -> :running
+          MapSet.member?(job_state.completed_tasks, task_id) -> :success
+          MapSet.member?(job_state.failed_tasks, task_id) -> :failed
+          MapSet.member?(job_state.skipped_tasks, task_id) -> :upstream_failed
+          true -> :unknown
+        end
+
+        Logger.info("🔄 [STATUS_UPDATE] job=#{job_id}, task=#{task_id}, #{old_status} → #{new_status}")
+
         updated_state = apply_task_status_change(job_state, task_id, new_status, opts)
         :ets.insert(:active_jobs, {job_id, updated_state})
 
@@ -144,6 +156,7 @@ defmodule Cascade.Runtime.StateManager do
         {:reply, {:ok, updated_state}, state}
 
       [] ->
+        Logger.warning("⚠️  [STATUS_UPDATE_FAILED] job=#{job_id}, task=#{task_id} - job not found in ETS")
         {:reply, {:error, :job_not_found}, state}
     end
   end

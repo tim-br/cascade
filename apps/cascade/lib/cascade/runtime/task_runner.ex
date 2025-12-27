@@ -46,10 +46,12 @@ defmodule Cascade.Runtime.TaskRunner do
     %{job_id: job_id, task_id: task_id, task_config: task_config} = payload
     depends_on = Map.get(payload, :depends_on, [])
 
+    Logger.info("🔔 [TASK_DISPATCH] job=#{job_id}, task=#{task_id}, worker=#{state.worker_id}, type=#{task_config["type"]}")
+
     # Check if task is already assigned/running (deduplication)
     case StateManager.claim_task(job_id, task_id, state.worker_id) do
       {:ok, :claimed} ->
-        Logger.info("Executing task: job_id=#{job_id}, task_id=#{task_id}, worker=#{state.worker_id}")
+        Logger.info("🎯 [TASK_CLAIMED] job=#{job_id}, task=#{task_id}, worker=#{state.worker_id}")
 
         # Check if dependencies are still valid (race condition protection)
         # If any dependency failed since dispatch, skip execution
@@ -64,11 +66,11 @@ defmodule Cascade.Runtime.TaskRunner do
             # Handle result
             case result do
               {:ok, task_result} ->
-                Logger.info("Task succeeded: job_id=#{job_id}, task_id=#{task_id}")
+                Logger.info("✅ [TASK_SUCCESS] job=#{job_id}, task=#{task_id}, worker=#{state.worker_id}, result=#{inspect(task_result)}")
                 Scheduler.handle_task_completion(job_id, task_id, task_result)
 
               {:error, error} ->
-                Logger.error("Task failed: job_id=#{job_id}, task_id=#{task_id}, error=#{inspect(error)}")
+                Logger.error("❌ [TASK_FAILURE] job=#{job_id}, task=#{task_id}, worker=#{state.worker_id}, error=#{inspect(error)}")
                 Scheduler.handle_task_failure(job_id, task_id, inspect(error))
             end
 

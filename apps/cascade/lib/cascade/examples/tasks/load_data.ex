@@ -11,14 +11,20 @@ defmodule Cascade.Examples.Tasks.LoadData do
     # Simulate some work
     Process.sleep(1000)
 
-    result = %{
-      records_loaded: 1000,
-      destination: "warehouse",
-      timestamp: DateTime.utc_now()
-    }
+    # 50% chance to fail (for testing error handling and retries)
+    if :rand.uniform() < 0.5 do
+      Logger.error("LoadData: Simulated failure (50% chance)")
+      {:error, "Simulated load failure for testing"}
+    else
+      result = %{
+        records_loaded: 1000,
+        destination: "warehouse",
+        timestamp: DateTime.utc_now()
+      }
 
-    Logger.info("LoadData: Loaded #{result.records_loaded} records")
+      Logger.info("LoadData: Loaded #{result.records_loaded} records")
 
-    {:ok, result}
+      {:ok, result}
+    end
   end
 end

@@ -60,6 +60,8 @@ defmodule Cascade.Runtime.TaskExecutors.LambdaExecutor do
     )
 
     # Invoke Lambda
+    Logger.info("🚀 [LAMBDA_INVOKE] job=#{job_id}, task=#{task_id}, function=#{function_name}, type=#{invocation_type}")
+
     result = LambdaClient.invoke(
       function_name,
       lambda_payload,
@@ -69,10 +71,11 @@ defmodule Cascade.Runtime.TaskExecutors.LambdaExecutor do
 
     case result do
       {:ok, :async_invoked} ->
-        Logger.info("LambdaExecutor: Async invocation successful for #{function_name}")
+        Logger.info("✅ [LAMBDA_ASYNC] job=#{job_id}, task=#{task_id}, function=#{function_name}")
         {:ok, %{status: "async_invoked", function: function_name}}
 
       {:ok, lambda_result} ->
+        Logger.info("✅ [LAMBDA_RESPONSE] job=#{job_id}, task=#{task_id}, result=#{inspect(lambda_result)}")
         handle_lambda_result(lambda_result, job_id, task_id, store_to_s3, task_config)
 
       {:error, {:function_error, error_type, message}} ->

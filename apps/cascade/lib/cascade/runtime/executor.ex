@@ -48,6 +48,8 @@ defmodule Cascade.Runtime.Executor do
     # Dependencies were added by scheduler from DAG definition
     depends_on = task_config["depends_on"] || []
 
+    Logger.info("🚀 [EXECUTOR_DISPATCH] job=#{job_id}, task=#{task_id}, type=#{task_config["type"]}, deps=#{inspect(depends_on)}")
+
     # Build task execution payload with context and dependencies
     task_payload = %{
       job_id: job_id,
@@ -60,8 +62,6 @@ defmodule Cascade.Runtime.Executor do
     # Send task to worker via PubSub
     # Workers will claim the task atomically via StateManager.claim_task
     Events.send_to_worker(worker_node, {:execute_task, task_payload})
-
-    Logger.info("Dispatched task: job_id=#{job_id}, task_id=#{task_id}, worker=#{worker_node}")
 
     {:noreply, state}
   end

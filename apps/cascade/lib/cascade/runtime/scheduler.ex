@@ -119,7 +119,7 @@ defmodule Cascade.Runtime.Scheduler do
 
   @impl true
   def handle_cast({:task_completed, job_id, task_id, result}, state) do
-    Logger.info("Task completed: job_id=#{job_id}, task_id=#{task_id}")
+    Logger.info("📥 [SCHEDULER_COMPLETION] job=#{job_id}, task=#{task_id}, result=#{inspect(result)}")
 
     # Update task status
     StateManager.update_task_status(job_id, task_id, :success, result: result)
@@ -195,7 +195,7 @@ defmodule Cascade.Runtime.Scheduler do
 
   @impl true
   def handle_cast({:task_failed, job_id, task_id, error}, state) do
-    Logger.error("Task failed: job_id=#{job_id}, task_id=#{task_id}, error=#{inspect(error)}")
+    Logger.error("📥 [SCHEDULER_FAILURE] job=#{job_id}, task=#{task_id}, error=#{inspect(error)}")
 
     # Check if we should retry this task
     case StateManager.get_job_state(job_id) do
