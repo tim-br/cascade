@@ -186,10 +186,14 @@ defmodule Cascade.Runtime.Scheduler do
           # Re-dispatch the task
           completed_tasks = MapSet.to_list(job_state.completed_tasks)
 
+          # Add dependencies back to task_config for validation in worker
+          dependencies = find_task_dependencies(job_state.dag_definition, task_id)
+          task_config_with_deps = Map.put(task_config, "depends_on", dependencies)
+
           task_context =
             build_task_context(job_id, task_id, job_state.dag_definition, completed_tasks)
 
-          Executor.dispatch_task(job_id, task_id, task_config, task_context)
+          Executor.dispatch_task(job_id, task_id, task_config_with_deps, task_context)
         else
           # No more retries, mark as failed
           if max_retries > 0 do
@@ -272,8 +276,11 @@ defmodule Cascade.Runtime.Scheduler do
         # Dispatch each ready task with context from completed dependencies
         Enum.each(ready_tasks, fn task_id ->
           task_config = find_task_config(dag_definition, task_id)
+          # Add dependencies back to task_config for validation in worker
+          dependencies = find_task_dependencies(dag_definition, task_id)
+          task_config_with_deps = Map.put(task_config, "depends_on", dependencies)
           task_context = build_task_context(job_id, task_id, dag_definition, completed_tasks)
-          Executor.dispatch_task(job_id, task_id, task_config, task_context)
+          Executor.dispatch_task(job_id, task_id, task_config_with_deps, task_context)
         end)
 
       {:error, _} ->

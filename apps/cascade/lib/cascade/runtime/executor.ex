@@ -44,12 +44,17 @@ defmodule Cascade.Runtime.Executor do
     # Select a worker (for Phase 1, broadcasts to all workers on this node)
     worker_node = select_worker(task_config)
 
-    # Build task execution payload with context
+    # Extract dependencies from task_config (full node with metadata)
+    # Dependencies were added by scheduler from DAG definition
+    depends_on = task_config["depends_on"] || []
+
+    # Build task execution payload with context and dependencies
     task_payload = %{
       job_id: job_id,
       task_id: task_id,
       task_config: task_config,
-      context: task_context
+      context: task_context,
+      depends_on: depends_on
     }
 
     # Send task to worker via PubSub

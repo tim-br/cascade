@@ -44,6 +44,7 @@ defmodule Cascade.Runtime.TaskRunner do
   @impl true
   def handle_info({:execute_task, payload}, state) do
     %{job_id: job_id, task_id: task_id, task_config: task_config} = payload
+    depends_on = Map.get(payload, :depends_on, [])
 
     # Check if task is already assigned/running (deduplication)
     case StateManager.claim_task(job_id, task_id, state.worker_id) do
@@ -52,7 +53,7 @@ defmodule Cascade.Runtime.TaskRunner do
 
         # Check if dependencies are still valid (race condition protection)
         # If any dependency failed since dispatch, skip execution
-        case check_dependencies_valid(job_id, task_config) do
+        case check_dependencies_valid(job_id, depends_on) do
           :ok ->
             # Update state to running
             StateManager.update_task_status(job_id, task_id, :running, worker_node: node())
@@ -89,10 +90,7 @@ defmodule Cascade.Runtime.TaskRunner do
 
   ## Private Functions
 
-  defp check_dependencies_valid(job_id, task_config) do
-    # Get dependencies from task config
-    depends_on = task_config["depends_on"] || []
-
+  defp check_dependencies_valid(job_id, depends_on) do
     if Enum.empty?(depends_on) do
       # No dependencies, always valid
       :ok
