@@ -60,6 +60,9 @@ defmodule CascadeWeb.JobDetailLive do
     job = Workflows.get_job_with_details!(job_id)
     task_executions = Workflows.list_task_executions_for_job(job_id)
 
+    # Sort tasks in topological order (dependencies before dependents)
+    sorted_task_executions = sort_tasks_topologically(task_executions, job.dag.definition)
+
     # Try to get in-memory state for active jobs
     job_state = case StateManager.get_job_state(job_id) do
       {:ok, state} -> state
@@ -68,8 +71,96 @@ defmodule CascadeWeb.JobDetailLive do
 
     socket
     |> assign(:job, job)
-    |> assign(:task_executions, task_executions)
+    |> assign(:task_executions, sorted_task_executions)
     |> assign(:job_state, job_state)
+  end
+
+  defp sort_tasks_topologically(task_executions, dag_definition) do
+    # Build dependency map from DAG edges
+    edges = dag_definition["edges"] || []
+
+    dependency_map =
+      Enum.reduce(edges, %{}, fn edge, acc ->
+        from = edge["from"]
+        to = edge["to"]
+        Map.update(acc, to, [from], fn deps -> [from | deps] end)
+      end)
+
+    # Get all task IDs from nodes
+    nodes = dag_definition["nodes"] || []
+    all_task_ids = Enum.map(nodes, fn node -> node["id"] end)
+
+    # Perform topological sort using Kahn's algorithm
+    topological_order = topological_sort(all_task_ids, dependency_map)
+
+    # Create a map of task_id -> execution for fast lookup
+    execution_map =
+      Enum.reduce(task_executions, %{}, fn te, acc ->
+        Map.put(acc, te.task_id, te)
+      end)
+
+    # Sort task executions according to topological order
+    Enum.flat_map(topological_order, fn task_id ->
+      case Map.get(execution_map, task_id) do
+        nil -> []
+        execution -> [execution]
+      end
+    end)
+  end
+
+  defp topological_sort(task_ids, dependency_map) do
+    # Kahn's algorithm for topological sorting
+    # Calculate in-degree for each node
+    in_degree =
+      Enum.reduce(task_ids, %{}, fn task_id, acc ->
+        deps = Map.get(dependency_map, task_id, [])
+        Map.put(acc, task_id, length(deps))
+      end)
+
+    # Find all nodes with in-degree 0 (no dependencies)
+    queue =
+      task_ids
+      |> Enum.filter(fn task_id -> Map.get(in_degree, task_id, 0) == 0 end)
+      |> Enum.sort()  # Sort for deterministic order
+
+    # Process queue
+    process_topological_queue(queue, [], dependency_map, in_degree, task_ids)
+  end
+
+  defp process_topological_queue([], result, _dependency_map, _in_degree, _all_tasks) do
+    Enum.reverse(result)
+  end
+
+  defp process_topological_queue([current | rest], result, dependency_map, in_degree, all_tasks) do
+    # Add current to result
+    new_result = [current | result]
+
+    # Find all tasks that depend on current
+    dependents =
+      all_tasks
+      |> Enum.filter(fn task_id ->
+        deps = Map.get(dependency_map, task_id, [])
+        current in deps
+      end)
+      |> Enum.sort()  # Sort for deterministic order
+
+    # Decrease in-degree for dependents
+    {new_in_degree, new_queue_items} =
+      Enum.reduce(dependents, {in_degree, []}, fn task_id, {deg_acc, queue_acc} ->
+        new_degree = Map.get(deg_acc, task_id, 0) - 1
+        updated_deg = Map.put(deg_acc, task_id, new_degree)
+
+        if new_degree == 0 do
+          {updated_deg, [task_id | queue_acc]}
+        else
+          {updated_deg, queue_acc}
+        end
+      end)
+
+    # Add new zero in-degree nodes to queue (sorted for determinism)
+    new_queue = rest ++ Enum.sort(new_queue_items)
+
+    process_topological_queue(new_queue, new_result, dependency_map, new_in_degree, all_tasks)
   end
 
   @impl true
