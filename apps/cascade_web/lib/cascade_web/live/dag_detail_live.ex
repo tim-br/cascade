@@ -221,7 +221,7 @@ defmodule CascadeWeb.DAGDetailLive do
                       <td><%= format_duration(job) %></td>
                       <td><%= job.triggered_by %></td>
                       <td>
-                        <.link navigate={~p"/jobs/#{job.id}"} class="btn btn-sm btn-ghost">
+                        <.link navigate={~p"/jobs/#{job.id}"} class="btn btn-sm btn-primary">
                           View
                         </.link>
                       </td>
