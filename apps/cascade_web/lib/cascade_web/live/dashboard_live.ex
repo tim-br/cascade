@@ -224,7 +224,7 @@ defmodule CascadeWeb.DashboardLive do
                         <td><%= format_datetime(job.started_at) %></td>
                         <td><%= format_duration(job) %></td>
                         <td>
-                          <.link navigate={~p"/jobs/#{job.id}"} class="btn btn-sm btn-ghost">
+                          <.link navigate={~p"/jobs/#{job.id}"} class="btn btn-sm btn-primary">
                             View
                           </.link>
                         </td>
