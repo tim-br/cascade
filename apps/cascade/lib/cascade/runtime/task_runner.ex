@@ -50,21 +50,32 @@ defmodule Cascade.Runtime.TaskRunner do
       {:ok, :claimed} ->
         Logger.info("Executing task: job_id=#{job_id}, task_id=#{task_id}, worker=#{state.worker_id}")
 
-        # Update state to running
-        StateManager.update_task_status(job_id, task_id, :running, worker_node: node())
+        # Check if dependencies are still valid (race condition protection)
+        # If any dependency failed since dispatch, skip execution
+        case check_dependencies_valid(job_id, task_config) do
+          :ok ->
+            # Update state to running
+            StateManager.update_task_status(job_id, task_id, :running, worker_node: node())
 
-        # Execute the task
-        result = execute_task(task_config, payload)
+            # Execute the task
+            result = execute_task(task_config, payload)
 
-        # Handle result
-        case result do
-          {:ok, task_result} ->
-            Logger.info("Task succeeded: job_id=#{job_id}, task_id=#{task_id}")
-            Scheduler.handle_task_completion(job_id, task_id, task_result)
+            # Handle result
+            case result do
+              {:ok, task_result} ->
+                Logger.info("Task succeeded: job_id=#{job_id}, task_id=#{task_id}")
+                Scheduler.handle_task_completion(job_id, task_id, task_result)
 
-          {:error, error} ->
-            Logger.error("Task failed: job_id=#{job_id}, task_id=#{task_id}, error=#{inspect(error)}")
-            Scheduler.handle_task_failure(job_id, task_id, inspect(error))
+              {:error, error} ->
+                Logger.error("Task failed: job_id=#{job_id}, task_id=#{task_id}, error=#{inspect(error)}")
+                Scheduler.handle_task_failure(job_id, task_id, inspect(error))
+            end
+
+          {:error, :upstream_failed} ->
+            Logger.warning("Task #{task_id} skipped - upstream dependency failed after dispatch")
+            # Mark as upstream_failed instead of executing
+            StateManager.update_task_status(job_id, task_id, :upstream_failed)
+            # Don't notify scheduler - job is likely already completing
         end
 
         {:noreply, %{state | current_task: nil}}
@@ -77,6 +88,35 @@ defmodule Cascade.Runtime.TaskRunner do
   end
 
   ## Private Functions
+
+  defp check_dependencies_valid(job_id, task_config) do
+    # Get dependencies from task config
+    depends_on = task_config["depends_on"] || []
+
+    if Enum.empty?(depends_on) do
+      # No dependencies, always valid
+      :ok
+    else
+      # Check all dependencies in Postgres (source of truth)
+      alias Cascade.Workflows
+      task_executions = Workflows.list_task_executions_for_job(job_id)
+
+      # Check if any dependency has failed
+      failed_dependency = Enum.find(depends_on, fn dep_task_id ->
+        case Enum.find(task_executions, fn te -> te.task_id == dep_task_id end) do
+          nil -> false  # Dependency not found (shouldn't happen)
+          task_execution -> task_execution.status == :failed
+        end
+      end)
+
+      if failed_dependency do
+        Logger.warning("Dependency #{failed_dependency} has failed - cannot execute task")
+        {:error, :upstream_failed}
+      else
+        :ok
+      end
+    end
+  end
 
   defp execute_task(task_config, payload) do
     task_type = task_config["type"]

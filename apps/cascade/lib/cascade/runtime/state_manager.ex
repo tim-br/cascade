@@ -115,6 +115,7 @@ defmodule Cascade.Runtime.StateManager do
       running_tasks: %{},
       completed_tasks: MapSet.new(),
       failed_tasks: MapSet.new(),
+      skipped_tasks: MapSet.new(),
       dag_definition: dag_definition,
       started_at: DateTime.utc_now()
     }
@@ -247,6 +248,16 @@ defmodule Cascade.Runtime.StateManager do
             running_tasks: Map.delete(job_state.running_tasks, task_id)
         }
 
+      :upstream_failed ->
+        # Task was skipped due to upstream failure
+        # Remove from pending or running, add to skipped, but don't count as a failure
+        %{
+          job_state
+          | pending_tasks: MapSet.delete(job_state.pending_tasks, task_id),
+            running_tasks: Map.delete(job_state.running_tasks, task_id),
+            skipped_tasks: MapSet.put(job_state.skipped_tasks, task_id)
+        }
+
       _ ->
         job_state
     end
@@ -284,7 +295,7 @@ defmodule Cascade.Runtime.StateManager do
           attrs =
             case status do
               :running -> Map.put(attrs, :started_at, DateTime.utc_now())
-              s when s in [:success, :failed] -> Map.put(attrs, :completed_at, DateTime.utc_now())
+              s when s in [:success, :failed, :upstream_failed] -> Map.put(attrs, :completed_at, DateTime.utc_now())
               _ -> attrs
             end
 

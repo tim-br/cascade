@@ -334,13 +334,16 @@ defmodule Cascade.Runtime.Scheduler do
       MapSet.size(job_state.pending_tasks) +
         map_size(job_state.running_tasks) +
         MapSet.size(job_state.completed_tasks) +
-        MapSet.size(job_state.failed_tasks)
+        MapSet.size(job_state.failed_tasks) +
+        MapSet.size(job_state.skipped_tasks)
 
-    completed_or_failed =
-      MapSet.size(job_state.completed_tasks) + MapSet.size(job_state.failed_tasks)
+    completed_or_failed_or_skipped =
+      MapSet.size(job_state.completed_tasks) +
+      MapSet.size(job_state.failed_tasks) +
+      MapSet.size(job_state.skipped_tasks)
 
-    # Job is complete when all tasks are either completed or failed
-    completed_or_failed == all_tasks_count and map_size(job_state.running_tasks) == 0
+    # Job is complete when all tasks are either completed, failed, or skipped
+    completed_or_failed_or_skipped == all_tasks_count and map_size(job_state.running_tasks) == 0
   end
 
   defp all_remaining_tasks_blocked?(job_state) do
