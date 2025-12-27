@@ -3,7 +3,7 @@ defmodule Cascade.Runtime.DAGExecutionPropertiesTest do
   use PropCheck
 
   alias Cascade.{Workflows, Repo}
-  alias Cascade.Runtime.{Scheduler, StateManager}
+  alias Cascade.Runtime.Scheduler
 
   setup do
     :ok = Ecto.Adapters.SQL.Sandbox.checkout(Cascade.Repo)
@@ -40,7 +40,11 @@ defmodule Cascade.Runtime.DAGExecutionPropertiesTest do
     # Task i can only depend on tasks j where j < i
     let edges <-
           list(
-            let {from_idx, to_idx} <- such_that({f, t} <- {integer(0, length(tasks) - 2), integer(1, length(tasks) - 1)}, when: f < t) do
+            let {from_idx, to_idx} <-
+                  such_that(
+                    {f, t} <- {integer(0, length(tasks) - 2), integer(1, length(tasks) - 1)},
+                    when: f < t
+                  ) do
               %{
                 "from" => Enum.at(tasks, from_idx),
                 "to" => Enum.at(tasks, to_idx)
@@ -251,7 +255,8 @@ defmodule Cascade.Runtime.DAGExecutionPropertiesTest do
   property "job must be failed if any task has status failed", [:verbose, numtests: 50] do
     forall {dag_def, task_results} <- job_execution_gen() do
       # Create DAG with unique name
-      dag_name = "prop_test_#{System.unique_integer([:positive, :monotonic])}_#{:rand.uniform(1_000_000)}"
+      dag_name =
+        "prop_test_#{System.unique_integer([:positive, :monotonic])}_#{:rand.uniform(1_000_000)}"
 
       {:ok, dag} =
         Workflows.create_dag(%{
@@ -273,9 +278,10 @@ defmodule Cascade.Runtime.DAGExecutionPropertiesTest do
   end
 
   # Property 2: If no task has status :failed, the job must be :success
-  property "job must be success if no task has status failed", [numtests: 50] do
+  property "job must be success if no task has status failed", numtests: 50 do
     forall {dag_def, task_results} <- job_execution_gen() do
-      dag_name = "prop_test_#{System.unique_integer([:positive, :monotonic])}_#{:rand.uniform(1_000_000)}"
+      dag_name =
+        "prop_test_#{System.unique_integer([:positive, :monotonic])}_#{:rand.uniform(1_000_000)}"
 
       {:ok, dag} =
         Workflows.create_dag(%{
@@ -298,7 +304,8 @@ defmodule Cascade.Runtime.DAGExecutionPropertiesTest do
   # Property 3: Every task marked upstream_failed must have a failed dependency
   property "upstream_failed tasks must have failed dependencies", [:verbose, numtests: 50] do
     forall {dag_def, task_results} <- job_execution_gen() do
-      dag_name = "prop_test_#{System.unique_integer([:positive, :monotonic])}_#{:rand.uniform(1_000_000)}"
+      dag_name =
+        "prop_test_#{System.unique_integer([:positive, :monotonic])}_#{:rand.uniform(1_000_000)}"
 
       {:ok, dag} =
         Workflows.create_dag(%{
@@ -341,7 +348,8 @@ defmodule Cascade.Runtime.DAGExecutionPropertiesTest do
   # Property 4: No task can be marked upstream_failed if all its dependencies succeeded
   property "task cannot be upstream_failed if dependencies succeeded", [:verbose, numtests: 50] do
     forall {dag_def, task_results} <- job_execution_gen() do
-      dag_name = "prop_test_#{System.unique_integer([:positive, :monotonic])}_#{:rand.uniform(1_000_000)}"
+      dag_name =
+        "prop_test_#{System.unique_integer([:positive, :monotonic])}_#{:rand.uniform(1_000_000)}"
 
       {:ok, dag} =
         Workflows.create_dag(%{
@@ -388,7 +396,8 @@ defmodule Cascade.Runtime.DAGExecutionPropertiesTest do
   # Property 5: All tasks must be in exactly one final state
   property "all tasks must reach a terminal state", [:verbose, numtests: 50] do
     forall {dag_def, task_results} <- job_execution_gen() do
-      dag_name = "prop_test_#{System.unique_integer([:positive, :monotonic])}_#{:rand.uniform(1_000_000)}"
+      dag_name =
+        "prop_test_#{System.unique_integer([:positive, :monotonic])}_#{:rand.uniform(1_000_000)}"
 
       {:ok, dag} =
         Workflows.create_dag(%{
@@ -418,9 +427,10 @@ defmodule Cascade.Runtime.DAGExecutionPropertiesTest do
   # NOTE: This property has a PropCheck reporter bug, commenting out for now
   # The invariant is already covered by property 3 and 4
   @tag :skip
-  property "tasks with failed dependencies cannot succeed", [numtests: 50] do
+  property "tasks with failed dependencies cannot succeed", numtests: 50 do
     forall {dag_def, task_results} <- job_execution_gen() do
-      dag_name = "prop_test_#{System.unique_integer([:positive, :monotonic])}_#{:rand.uniform(1_000_000)}"
+      dag_name =
+        "prop_test_#{System.unique_integer([:positive, :monotonic])}_#{:rand.uniform(1_000_000)}"
 
       {:ok, dag} =
         Workflows.create_dag(%{
@@ -611,6 +621,248 @@ defmodule Cascade.Runtime.DAGExecutionPropertiesTest do
   defp list_of_length(n, gen) do
     let l <- vector(n, gen) do
       l
+    end
+  end
+
+  # Helper: Create a DAG for concurrent runtime testing
+  defp create_runtime_test_dag(task_count, edge_probability \\ 30) do
+    tasks = Enum.map(1..task_count, fn i -> "task_#{i}" end)
+
+    # Generate edges with controlled probability
+    edges =
+      for i <- 1..(task_count - 1),
+          j <- (i + 1)..task_count,
+          :rand.uniform(100) < edge_probability do
+        %{
+          "from" => Enum.at(tasks, i - 1),
+          "to" => Enum.at(tasks, j - 1)
+        }
+      end
+
+    nodes =
+      Enum.map(tasks, fn task_id ->
+        %{
+          "id" => task_id,
+          "type" => "local",
+          "config" => %{
+            "module" => "Cascade.Runtime.DAGExecutionPropertiesTest.RandomFailureTask",
+            "failure_rate" => 20,  # 20% failure rate
+            "timeout" => 5
+          }
+        }
+      end)
+
+    %{
+      "nodes" => nodes,
+      "edges" => edges,
+      "metadata" => %{"description" => "Runtime test DAG"}
+    }
+  end
+
+  # Test task module with configurable failure rate
+  defmodule RandomFailureTask do
+    @moduledoc """
+    A test task that randomly fails based on configuration.
+    Used for testing concurrent job execution.
+    """
+
+    def run(context) do
+      # Get failure rate from task config (default 20%)
+      failure_rate =
+        case context do
+          %{task_config: %{"config" => %{"failure_rate" => rate}}} -> rate
+          _ -> 20
+        end
+
+      # Add small delay to simulate work and increase chance of race conditions
+      Process.sleep(:rand.uniform(50))
+
+      if :rand.uniform(100) < failure_rate do
+        {:error, "Random failure for testing"}
+      else
+        {:ok, %{"result" => "success_#{:rand.uniform(10000)}"}}
+      end
+    end
+  end
+
+  property "each task is executed exactly once — no duplicates, no missing tasks", [
+    :verbose,
+    numtests: 100
+  ] do
+    forall {dag_def, task_results} <- job_execution_gen() do
+      dag_name =
+        "exact_once_#{System.unique_integer([:positive, :monotonic])}_#{:rand.uniform(1_000_000)}"
+
+      {:ok, dag} =
+        Workflows.create_dag(%{
+          name: dag_name,
+          description: "Property test DAG - exact once",
+          definition: dag_def,
+          enabled: true
+        })
+
+      result = execute_simulated_job(dag.id, dag_def, task_results)
+
+      expected_task_ids = Enum.map(dag_def["nodes"], & &1["id"]) |> MapSet.new()
+      actual_task_ids = Enum.map(result.task_executions, & &1.task_id) |> MapSet.new()
+
+      all_tasks_present_exactly_once = MapSet.equal?(expected_task_ids, actual_task_ids)
+
+      no_duplicates =
+        result.task_executions
+        |> Enum.frequencies_by(& &1.task_id)
+        |> Map.values()
+        |> Enum.all?(&(&1 == 1))
+
+      all_terminal =
+        Enum.all?(result.task_executions, fn te ->
+          te.status in [:success, :failed, :upstream_failed]
+        end)
+
+      # Return the boolean result directly
+      # (aggregate causes issues with PropCheck)
+      all_tasks_present_exactly_once and no_duplicates and all_terminal
+    end
+  end
+
+  @tag timeout: 180_000
+  test "concurrent runtime jobs — each task executed at most once per job" do
+    # Create a DAG with 6-8 tasks
+    task_count = :rand.uniform(3) + 5
+    dag_def = create_runtime_test_dag(task_count, 35)
+
+    dag_name = "concurrent_runtime_test_#{System.unique_integer([:positive, :monotonic])}"
+
+    {:ok, dag} =
+      Workflows.create_dag(%{
+        name: dag_name,
+        description: "Concurrent runtime test DAG",
+        definition: dag_def,
+        enabled: true
+      })
+
+    # Launch 24 concurrent jobs
+    num_jobs = 24
+
+    IO.puts("\n=== Testing #{num_jobs} concurrent jobs with #{task_count} tasks each ===")
+
+    tasks =
+      for job_num <- 1..num_jobs do
+        Task.async(fn ->
+          # Add small random delay to increase concurrency
+          Process.sleep(:rand.uniform(10))
+
+          {:ok, job} = Scheduler.trigger_job(dag.id, "concurrent_test_#{job_num}", %{})
+          {job_num, job.id}
+        end)
+      end
+
+    # Wait for all jobs to be triggered
+    job_ids = Enum.map(tasks, &Task.await(&1, 10_000))
+
+    IO.puts("Triggered #{length(job_ids)} jobs, waiting for completion...")
+
+    # Poll for job completion (max 60 seconds)
+    max_wait_time = 60_000
+    poll_interval = 500
+    start_time = System.monotonic_time(:millisecond)
+
+    # Wait for all jobs to complete
+    :ok = wait_for_jobs_to_complete(job_ids, max_wait_time, poll_interval, start_time)
+
+    IO.puts("All jobs completed, verifying invariants...")
+
+    # Verify invariants for each job
+    failures =
+      Enum.flat_map(job_ids, fn {job_num, job_id} ->
+        job = Workflows.get_job!(job_id)
+        task_executions = Workflows.list_task_executions_for_job(job_id)
+
+        expected_task_ids = Enum.map(dag_def["nodes"], & &1["id"]) |> MapSet.new()
+        actual_task_ids = Enum.map(task_executions, & &1.task_id)
+
+        # Count occurrences of each task_id
+        task_frequencies = Enum.frequencies(actual_task_ids)
+
+        # Find tasks executed more than once (duplicates)
+        duplicates =
+          task_frequencies
+          |> Enum.filter(fn {_task_id, count} -> count > 1 end)
+          |> Enum.map(fn {task_id, count} -> {task_id, count} end)
+
+        # Verify: No task should be executed more than once
+        if duplicates != [] do
+          [
+            "Job #{job_num} (#{job_id}): Tasks executed multiple times: #{inspect(duplicates)}"
+          ]
+        else
+          # All tasks executed at most once - this is correct
+          # Some tasks might not run at all due to upstream failures
+          actual_task_set = MapSet.new(actual_task_ids)
+          missing_tasks = MapSet.difference(expected_task_ids, actual_task_set)
+
+          if MapSet.size(missing_tasks) > 0 do
+            # Verify missing tasks are due to upstream failures or job failure
+            # This is acceptable behavior
+            missing_list = MapSet.to_list(missing_tasks)
+
+            # Check if these tasks should have been skipped
+            has_failures = Enum.any?(task_executions, fn te -> te.status == :failed end)
+
+            if has_failures do
+              # Missing tasks are expected when there are failures
+              []
+            else
+              # No failures, all tasks should have run
+              [
+                "Job #{job_num} (#{job_id}): Missing tasks #{inspect(missing_list)} but no failures occurred"
+              ]
+            end
+          else
+            # All tasks present exactly once - perfect
+            []
+          end
+        end
+      end)
+
+    if failures != [] do
+      IO.puts("\n❌ FAILURES DETECTED:")
+      Enum.each(failures, &IO.puts("  - #{&1}"))
+      flunk("Found #{length(failures)} invariant violations:\n#{Enum.join(failures, "\n")}")
+    else
+      IO.puts("✅ All #{num_jobs} jobs passed: each task executed at most once")
+    end
+  end
+
+  # Helper: Wait for jobs to complete
+  defp wait_for_jobs_to_complete(job_ids, max_wait_time, poll_interval, start_time) do
+    elapsed = System.monotonic_time(:millisecond) - start_time
+
+    if elapsed > max_wait_time do
+      incomplete_jobs =
+        Enum.filter(job_ids, fn {_job_num, job_id} ->
+          job = Workflows.get_job!(job_id)
+          job.status == :running
+        end)
+
+      if incomplete_jobs != [] do
+        flunk("Timeout waiting for jobs to complete: #{inspect(incomplete_jobs)}")
+      else
+        :ok
+      end
+    else
+      all_complete =
+        Enum.all?(job_ids, fn {_job_num, job_id} ->
+          job = Workflows.get_job!(job_id)
+          job.status in [:success, :failed]
+        end)
+
+      if all_complete do
+        :ok
+      else
+        Process.sleep(poll_interval)
+        wait_for_jobs_to_complete(job_ids, max_wait_time, poll_interval, start_time)
+      end
     end
   end
 end
