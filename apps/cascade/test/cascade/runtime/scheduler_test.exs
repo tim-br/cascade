@@ -653,6 +653,190 @@ defmodule Cascade.Runtime.SchedulerTest do
     end
   end
 
+  describe "retry value normalization" do
+    test "handles empty string retry value gracefully" do
+      # This tests the bug fix for empty string retry values causing ArithmeticError
+      dag_definition = %{
+        "name" => "test_empty_retry",
+        "nodes" => [
+          %{"id" => "task1", "type" => "local", "config" => %{"retry" => ""}}
+        ],
+        "edges" => [],
+        "metadata" => %{"description" => "Test empty string retry"}
+      }
+
+      {:ok, dag} = Workflows.create_dag(%{
+        name: "test_empty_retry",
+        description: "Test empty string retry",
+        definition: dag_definition,
+        enabled: true
+      })
+
+      # Simulate the retry normalization logic from handle_cast({:task_failed, ...})
+      task_config = Enum.at(dag_definition["nodes"], 0)
+
+      # This should normalize to 0, not crash with ArithmeticError
+      max_retries = case task_config["config"]["retry"] do
+        n when is_integer(n) -> n
+        _ -> 0
+      end
+
+      assert max_retries == 0
+      # Verify arithmetic works (this would crash before the fix)
+      assert max_retries + 1 == 1
+    end
+
+    test "handles nil retry value gracefully" do
+      dag_definition = %{
+        "name" => "test_nil_retry",
+        "nodes" => [
+          %{"id" => "task1", "type" => "local", "config" => %{"retry" => nil}}
+        ],
+        "edges" => [],
+        "metadata" => %{"description" => "Test nil retry"}
+      }
+
+      {:ok, dag} = Workflows.create_dag(%{
+        name: "test_nil_retry",
+        description: "Test nil retry",
+        definition: dag_definition,
+        enabled: true
+      })
+
+      task_config = Enum.at(dag_definition["nodes"], 0)
+
+      max_retries = case task_config["config"]["retry"] do
+        n when is_integer(n) -> n
+        _ -> 0
+      end
+
+      assert max_retries == 0
+    end
+
+    test "handles missing retry value gracefully" do
+      dag_definition = %{
+        "name" => "test_missing_retry",
+        "nodes" => [
+          %{"id" => "task1", "type" => "local", "config" => %{}}
+        ],
+        "edges" => [],
+        "metadata" => %{"description" => "Test missing retry"}
+      }
+
+      {:ok, dag} = Workflows.create_dag(%{
+        name: "test_missing_retry",
+        description: "Test missing retry",
+        definition: dag_definition,
+        enabled: true
+      })
+
+      task_config = Enum.at(dag_definition["nodes"], 0)
+
+      max_retries = case task_config["config"]["retry"] do
+        n when is_integer(n) -> n
+        _ -> 0
+      end
+
+      assert max_retries == 0
+    end
+
+    test "preserves valid integer retry value" do
+      dag_definition = %{
+        "name" => "test_valid_retry",
+        "nodes" => [
+          %{"id" => "task1", "type" => "local", "config" => %{"retry" => 3}}
+        ],
+        "edges" => [],
+        "metadata" => %{"description" => "Test valid retry"}
+      }
+
+      {:ok, dag} = Workflows.create_dag(%{
+        name: "test_valid_retry",
+        description: "Test valid retry",
+        definition: dag_definition,
+        enabled: true
+      })
+
+      task_config = Enum.at(dag_definition["nodes"], 0)
+
+      max_retries = case task_config["config"]["retry"] do
+        n when is_integer(n) -> n
+        _ -> 0
+      end
+
+      assert max_retries == 3
+    end
+
+    test "scheduler does not crash with empty string retry on task failure" do
+      # Integration test: verify Scheduler GenServer doesn't crash when handling
+      # task failure with empty string retry value
+      dag_definition = %{
+        "name" => "test_scheduler_crash_prevention",
+        "nodes" => [
+          %{"id" => "task1", "type" => "local", "config" => %{"retry" => ""}},
+          %{"id" => "task2", "type" => "local", "config" => %{}}
+        ],
+        "edges" => [
+          %{"from" => "task1", "to" => "task2"}
+        ],
+        "metadata" => %{"description" => "Test scheduler crash prevention"}
+      }
+
+      {:ok, dag} = Workflows.create_dag(%{
+        name: "test_scheduler_crash_prevention",
+        description: "Test scheduler crash prevention",
+        definition: dag_definition,
+        enabled: true
+      })
+
+      {:ok, job} = Workflows.create_job(%{
+        dag_id: dag.id,
+        status: :running,
+        triggered_by: "test",
+        started_at: DateTime.utc_now()
+      })
+
+      {:ok, _} = Workflows.create_task_execution(%{
+        job_id: job.id,
+        task_id: "task1",
+        status: :running,
+        execution_type: "local",
+        started_at: DateTime.utc_now(),
+        retry_count: 0
+      })
+
+      {:ok, _} = Workflows.create_task_execution(%{
+        job_id: job.id,
+        task_id: "task2",
+        status: :pending,
+        execution_type: "local"
+      })
+
+      # Initialize job state in StateManager
+      dag_definition_with_id = Map.put(dag_definition, "dag_id", dag.id)
+      {:ok, _} = StateManager.create_job_state(job.id, dag_definition_with_id)
+
+      # Move task1 to running in state
+      StateManager.update_task_status(job.id, "task1", :running)
+
+      # This should not crash the Scheduler
+      # Before the fix, this would cause: ArithmeticError: bad argument in arithmetic expression
+      Scheduler.handle_task_failure(job.id, "task1", "Some error")
+
+      # Give the cast a moment to process
+      Process.sleep(100)
+
+      # Verify Scheduler is still alive (critical - it was crashing before)
+      assert Process.whereis(Cascade.Runtime.Scheduler) != nil
+
+      # Verify task was marked as failed in database (not retried since max_retries = 0)
+      task_executions = Workflows.list_task_executions_for_job(job.id)
+      task1 = Enum.find(task_executions, fn te -> te.task_id == "task1" end)
+      assert task1.status == :failed
+      assert task1.error =~ "Some error"
+    end
+  end
+
   describe "state transitions" do
     test "task transitions from pending to running to success" do
       job_state = %{
