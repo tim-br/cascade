@@ -389,13 +389,18 @@ defmodule Cascade.Runtime.Scheduler do
   end
 
   defp complete_job(job_id, job_state) do
-    # Mark any remaining pending tasks as upstream_failed
-    # (these tasks never ran because their dependencies failed)
+    # Log job state for debugging
+    Logger.info("Completing job #{job_id}: completed=#{MapSet.size(job_state.completed_tasks)}, failed=#{MapSet.size(job_state.failed_tasks)}, pending=#{MapSet.size(job_state.pending_tasks)}")
+
+    # Mark any remaining pending tasks as upstream_failed or skipped
+    # (these tasks never ran because their dependencies failed or weren't dispatched)
     if MapSet.size(job_state.pending_tasks) > 0 do
       mark_blocked_tasks_as_upstream_failed(job_id, job_state)
     end
 
-    # Determine final status
+    # Determine final status based on ACTUAL task failures, not blocked/skipped tasks
+    # A job succeeds if all tasks that RAN completed successfully
+    # Tasks that were skipped due to upstream failures don't count as job failures
     final_status = if MapSet.size(job_state.failed_tasks) > 0, do: :failed, else: :success
 
     # Update Job in Postgres
