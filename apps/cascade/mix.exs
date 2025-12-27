@@ -48,7 +48,8 @@ defmodule Cascade.MixProject do
       {:ex_aws_lambda, "~> 2.0"},
       {:ex_aws_s3, "~> 2.5"},
       {:hackney, "~> 1.20"},
-      {:sweet_xml, "~> 0.7"}
+      {:sweet_xml, "~> 0.7"},
+      {:propcheck, "~> 1.5", only: [:test, :dev]}
     ]
   end
 
