@@ -1,7 +1,6 @@
 defmodule CascadeWeb.WorkerListLive do
   use CascadeWeb, :live_view
 
-  alias Cascade.Runtime.StateManager
   alias Cascade.Events
 
   @impl true
@@ -58,16 +57,6 @@ defmodule CascadeWeb.WorkerListLive do
     |> assign(:total_capacity, total_capacity)
     |> assign(:total_active, total_active)
     |> assign(:online_workers, online_workers)
-  end
-
-  defp worker_status(last_seen) do
-    diff = DateTime.diff(DateTime.utc_now(), last_seen, :second)
-
-    cond do
-      diff < 15 -> :online
-      diff < 60 -> :warning
-      true -> :offline
-    end
   end
 
   @impl true

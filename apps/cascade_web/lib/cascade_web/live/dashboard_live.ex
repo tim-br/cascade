@@ -2,7 +2,6 @@ defmodule CascadeWeb.DashboardLive do
   use CascadeWeb, :live_view
 
   alias Cascade.Workflows
-  alias Cascade.Runtime.StateManager
   alias Cascade.Events
 
   @impl true
