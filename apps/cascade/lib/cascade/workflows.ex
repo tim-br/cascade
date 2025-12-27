@@ -8,7 +8,7 @@ defmodule Cascade.Workflows do
   import Ecto.Query, warn: false
   alias Cascade.Repo
 
-  alias Cascade.Workflows.{DAG, Job, TaskExecution}
+  alias Cascade.Workflows.{DAG, Job, TaskExecution, WorkerHeartbeat}
 
   ## DAG functions
 
@@ -290,5 +290,184 @@ defmodule Cascade.Workflows do
   """
   def delete_task_execution(%TaskExecution{} = task_execution) do
     Repo.delete(task_execution)
+  end
+
+  @doc """
+  Atomically claims a task for execution by a worker.
+
+  Returns {:ok, :claimed} if successfully claimed.
+  Returns {:error, :already_claimed} if already claimed by another worker.
+  """
+  def claim_task(job_id, task_id, worker_id) do
+    # Use a transaction with row-level locking for atomicity
+    Repo.transaction(fn ->
+      # Find the task execution and lock it for update
+      task_execution =
+        TaskExecution
+        |> where([te], te.job_id == ^job_id and te.task_id == ^task_id)
+        |> lock("FOR UPDATE")
+        |> Repo.one()
+
+      if task_execution do
+        # Convert worker_id to string for comparison and storage
+        worker_id_str = to_string(worker_id)
+
+        case task_execution.claimed_by_worker do
+          nil ->
+            # Not claimed yet, claim it
+            {:ok, _} =
+              update_task_execution(task_execution, %{
+                claimed_by_worker: worker_id_str,
+                claimed_at: DateTime.utc_now()
+              })
+
+            :claimed
+
+          ^worker_id_str ->
+            # Already claimed by this worker
+            :claimed
+
+          _other_worker ->
+            # Already claimed by a different worker
+            Repo.rollback(:already_claimed)
+        end
+      else
+        Repo.rollback(:task_not_found)
+      end
+    end)
+    |> case do
+      {:ok, :claimed} -> {:ok, :claimed}
+      {:error, reason} -> {:error, reason}
+    end
+  end
+
+  @doc """
+  Gets the current job state computed from task executions.
+
+  Returns a map with:
+  - :pending_tasks - MapSet of task IDs still pending
+  - :running_tasks - Map of task_id => worker_node for running tasks
+  - :completed_tasks - MapSet of successfully completed task IDs
+  - :failed_tasks - MapSet of failed task IDs
+  - :skipped_tasks - MapSet of skipped task IDs (upstream_failed)
+  """
+  def get_job_state(job_id) do
+    task_executions = list_task_executions_for_job(job_id)
+    job = get_job!(job_id)
+    dag = get_dag!(job.dag_id)
+
+    # Get all task IDs from the DAG
+    all_task_ids =
+      dag.definition["nodes"]
+      |> Enum.map(& &1["id"])
+      |> MapSet.new()
+
+    # Build state from task executions
+    {pending, running, completed, failed, skipped} =
+      Enum.reduce(task_executions, {all_task_ids, %{}, MapSet.new(), MapSet.new(), MapSet.new()}, fn te,
+                                                                                                       {pending_acc,
+                                                                                                        running_acc,
+                                                                                                        completed_acc,
+                                                                                                        failed_acc,
+                                                                                                        skipped_acc} ->
+        case te.status do
+          :pending ->
+            {pending_acc, running_acc, completed_acc, failed_acc, skipped_acc}
+
+          :running ->
+            {
+              MapSet.delete(pending_acc, te.task_id),
+              Map.put(running_acc, te.task_id, te.worker_node),
+              completed_acc,
+              failed_acc,
+              skipped_acc
+            }
+
+          :success ->
+            {
+              MapSet.delete(pending_acc, te.task_id),
+              Map.delete(running_acc, te.task_id),
+              MapSet.put(completed_acc, te.task_id),
+              failed_acc,
+              skipped_acc
+            }
+
+          :failed ->
+            {
+              MapSet.delete(pending_acc, te.task_id),
+              Map.delete(running_acc, te.task_id),
+              completed_acc,
+              MapSet.put(failed_acc, te.task_id),
+              skipped_acc
+            }
+
+          :upstream_failed ->
+            {
+              MapSet.delete(pending_acc, te.task_id),
+              Map.delete(running_acc, te.task_id),
+              completed_acc,
+              failed_acc,
+              MapSet.put(skipped_acc, te.task_id)
+            }
+
+          _ ->
+            {pending_acc, running_acc, completed_acc, failed_acc, skipped_acc}
+        end
+      end)
+
+    {:ok,
+     %{
+       job_id: job_id,
+       dag_id: job.dag_id,
+       status: job.status,
+       pending_tasks: pending,
+       running_tasks: running,
+       completed_tasks: completed,
+       failed_tasks: failed,
+       skipped_tasks: skipped,
+       dag_definition: dag.definition,
+       started_at: job.started_at
+     }}
+  end
+
+  ## WorkerHeartbeat functions
+
+  @doc """
+  Records or updates a worker heartbeat.
+  """
+  def upsert_worker_heartbeat(node, capacity, active_tasks) do
+    attrs = %{
+      node: node,
+      last_seen: DateTime.utc_now(),
+      capacity: capacity,
+      active_tasks: active_tasks
+    }
+
+    # Use Repo.insert with on_conflict to upsert
+    %WorkerHeartbeat{}
+    |> WorkerHeartbeat.changeset(attrs)
+    |> Repo.insert(
+      on_conflict: {:replace, [:last_seen, :capacity, :active_tasks, :updated_at]},
+      conflict_target: :node
+    )
+  end
+
+  @doc """
+  Gets all active worker heartbeats.
+  Returns workers that have been seen in the last 30 seconds.
+  """
+  def get_active_workers do
+    cutoff = DateTime.add(DateTime.utc_now(), -30, :second)
+
+    WorkerHeartbeat
+    |> where([wh], wh.last_seen > ^cutoff)
+    |> Repo.all()
+  end
+
+  @doc """
+  Gets a specific worker heartbeat by node name.
+  """
+  def get_worker_heartbeat(node) do
+    Repo.get(WorkerHeartbeat, node)
   end
 end

@@ -17,6 +17,8 @@ defmodule Cascade.Workflows.TaskExecution do
     field :task_id, :string
     field :status, Ecto.Enum, values: @statuses, default: :pending
     field :worker_node, :string
+    field :claimed_by_worker, :string
+    field :claimed_at, :utc_datetime
     field :started_at, :utc_datetime
     field :completed_at, :utc_datetime
     field :result, :map
@@ -38,6 +40,8 @@ defmodule Cascade.Workflows.TaskExecution do
       :task_id,
       :status,
       :worker_node,
+      :claimed_by_worker,
+      :claimed_at,
       :started_at,
       :completed_at,
       :result,

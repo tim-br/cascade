@@ -311,14 +311,30 @@ defmodule Cascade.Runtime.Scheduler do
 
         ready_tasks = Validator.get_ready_tasks(dag_definition, completed_tasks, failed_tasks)
 
+        # DEBUG: Log job state before filtering
+        Logger.info("🔍 [DISPATCH_CHECK] job=#{job_id}, ready_from_validator=#{inspect(ready_tasks)}")
+        Logger.info("   State: running=#{inspect(Map.keys(job_state.running_tasks))}, completed=#{inspect(MapSet.to_list(job_state.completed_tasks))}, failed=#{inspect(MapSet.to_list(job_state.failed_tasks))}, skipped=#{inspect(MapSet.to_list(job_state.skipped_tasks))}")
+
         # Filter out tasks that are already running, completed, failed, or skipped
         ready_tasks =
           Enum.reject(ready_tasks, fn task_id ->
-            Map.has_key?(job_state.running_tasks, task_id) or
-              MapSet.member?(job_state.completed_tasks, task_id) or
-              MapSet.member?(job_state.failed_tasks, task_id) or
-              MapSet.member?(job_state.skipped_tasks, task_id)
+            is_running = Map.has_key?(job_state.running_tasks, task_id)
+            is_completed = MapSet.member?(job_state.completed_tasks, task_id)
+            is_failed = MapSet.member?(job_state.failed_tasks, task_id)
+            is_skipped = MapSet.member?(job_state.skipped_tasks, task_id)
+
+            should_reject = is_running or is_completed or is_failed or is_skipped
+
+            if should_reject do
+              Logger.info("   ❌ Filtering out #{task_id}: running=#{is_running}, completed=#{is_completed}, failed=#{is_failed}, skipped=#{is_skipped}")
+            end
+
+            should_reject
           end)
+
+        if ready_tasks != [] do
+          Logger.info("   ✅ Will dispatch: #{inspect(ready_tasks)}")
+        end
 
         # Dispatch each ready task with context from completed dependencies
         Enum.each(ready_tasks, fn task_id ->
