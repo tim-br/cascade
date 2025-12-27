@@ -26,21 +26,27 @@ defmodule Cascade.Runtime.TaskExecutors.LocalExecutor do
 
     if module_name do
       try do
-        module = String.to_existing_atom("Elixir.#{module_name}")
+        # Convert module name to atom (safe since we control DAG definitions)
+        # Use String.to_atom instead of to_existing_atom to handle modules that aren't loaded yet
+        module = String.to_atom("Elixir.#{module_name}")
 
-        # Build context for the task
-        context = %{
-          job_id: payload[:job_id],
-          task_id: payload[:task_id],
-          config: task_config["config"] || task_config
-        }
+        # Ensure the module is loaded
+        case Code.ensure_loaded(module) do
+          {:module, ^module} ->
+            # Build context for the task
+            context = %{
+              job_id: payload[:job_id],
+              task_id: payload[:task_id],
+              config: task_config["config"] || task_config
+            }
 
-        # Execute the module's run/1 function
-        apply_task_function(module, context)
+            # Execute the module's run/1 function
+            apply_task_function(module, context)
+
+          {:error, reason} ->
+            {:error, "Failed to load module #{module_name}: #{inspect(reason)}"}
+        end
       rescue
-        ArgumentError ->
-          {:error, "Module not found: #{module_name}"}
-
         error ->
           {:error, "Task execution failed: #{inspect(error)}"}
       end

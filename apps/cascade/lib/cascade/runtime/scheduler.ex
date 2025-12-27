@@ -202,7 +202,12 @@ defmodule Cascade.Runtime.Scheduler do
       {:ok, job_state} ->
         # Get task config to check retry settings
         task_config = find_task_config(job_state.dag_definition, task_id)
-        max_retries = task_config["config"]["retry"] || 0
+
+        # Normalize retry value (handle empty strings, nil, etc.)
+        max_retries = case task_config["config"]["retry"] do
+          n when is_integer(n) -> n
+          _ -> 0
+        end
 
         # Get current retry count from Postgres
         task_execution = get_task_execution(job_id, task_id)
