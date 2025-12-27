@@ -367,6 +367,72 @@ defmodule Cascade.Runtime.SchedulerTest do
       assert final_status == :success
       assert actual_failures == 0
     end
+
+    test "job completes when task is skipped due to race condition" do
+      # This tests the bug fix where job gets stuck in :running when
+      # a task is marked upstream_failed after dispatch
+      dag_definition = %{
+        "name" => "race_completion_test",
+        "nodes" => [
+          %{"id" => "task_a", "type" => "lambda", "config" => %{}},
+          %{"id" => "task_b", "type" => "lambda", "config" => %{}}
+        ],
+        "edges" => [
+          %{"from" => "task_a", "to" => "task_b"}
+        ],
+        "metadata" => %{"description" => "Test race condition completion"}
+      }
+
+      {:ok, dag} = Workflows.create_dag(%{
+        name: "race_completion_test",
+        description: "Test race condition job completion",
+        definition: dag_definition,
+        enabled: true
+      })
+
+      {:ok, job} = Workflows.create_job(%{
+        dag_id: dag.id,
+        status: :running,
+        triggered_by: "test",
+        started_at: DateTime.utc_now()
+      })
+
+      # Task A fails
+      {:ok, _} = Workflows.create_task_execution(%{
+        job_id: job.id,
+        task_id: "task_a",
+        status: :failed,
+        execution_type: "lambda",
+        error: "Lambda invocation failed",
+        started_at: DateTime.utc_now(),
+        completed_at: DateTime.utc_now()
+      })
+
+      # Task B was dispatched before A failed, but caught the failure
+      # and was marked as upstream_failed
+      {:ok, _} = Workflows.create_task_execution(%{
+        job_id: job.id,
+        task_id: "task_b",
+        status: :upstream_failed,
+        execution_type: "lambda",
+        completed_at: DateTime.utc_now()
+      })
+
+      # Calculate final status
+      task_executions = Workflows.list_task_executions_for_job(job.id)
+      actual_failures = Enum.count(task_executions, fn te -> te.status == :failed end)
+      final_status = if actual_failures > 0, do: :failed, else: :success
+
+      # All tasks are in terminal state - job should be complete
+      all_terminal = Enum.all?(task_executions, fn te ->
+        te.status in [:success, :failed, :upstream_failed]
+      end)
+
+      # Job MUST complete with status :failed (because task_a actually failed)
+      assert all_terminal == true
+      assert final_status == :failed
+      assert actual_failures == 1
+    end
   end
 
   describe "dependency validation" do

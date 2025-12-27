@@ -76,7 +76,8 @@ defmodule Cascade.Runtime.TaskRunner do
             Logger.warning("Task #{task_id} skipped - upstream dependency failed after dispatch")
             # Mark as upstream_failed instead of executing
             StateManager.update_task_status(job_id, task_id, :upstream_failed)
-            # Don't notify scheduler - job is likely already completing
+            # Notify scheduler to check if job is complete
+            Scheduler.handle_task_skipped(job_id, task_id)
         end
 
         {:noreply, %{state | current_task: nil}}

@@ -51,6 +51,13 @@ defmodule Cascade.Runtime.Scheduler do
     GenServer.cast(__MODULE__, {:task_failed, job_id, task_id, error})
   end
 
+  @doc """
+  Handles task being skipped due to upstream failure.
+  """
+  def handle_task_skipped(job_id, task_id) do
+    GenServer.cast(__MODULE__, {:task_skipped, job_id, task_id})
+  end
+
   ## Server Callbacks
 
   @impl true
@@ -144,6 +151,38 @@ defmodule Cascade.Runtime.Scheduler do
 
             {:error, _} ->
               Logger.warning("Failed to get updated job state for job_id=#{job_id}")
+          end
+        end
+
+      {:error, _} ->
+        Logger.warning("Job state not found for job_id=#{job_id}")
+    end
+
+    {:noreply, state}
+  end
+
+  @impl true
+  def handle_cast({:task_skipped, job_id, task_id}, state) do
+    Logger.info("Task skipped (upstream_failed): job_id=#{job_id}, task_id=#{task_id}")
+
+    # Task status already updated by TaskRunner
+    # Just check if job is complete
+    case StateManager.get_job_state(job_id) do
+      {:ok, job_state} ->
+        if job_complete?(job_state) do
+          Logger.info("Job #{job_id} complete after task skip")
+          complete_job(job_id, job_state)
+        else
+          # Check if all remaining tasks are blocked
+          if all_remaining_tasks_blocked?(job_state) do
+            Logger.error(
+              "All remaining tasks blocked for job #{job_id} after task skip - marking blocked tasks and completing job"
+            )
+
+            mark_blocked_tasks_as_upstream_failed(job_id, job_state)
+            complete_job(job_id, job_state)
+          else
+            Logger.info("Job #{job_id} has remaining runnable tasks - continuing execution")
           end
         end
 
