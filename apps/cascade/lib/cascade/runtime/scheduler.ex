@@ -389,19 +389,22 @@ defmodule Cascade.Runtime.Scheduler do
   end
 
   defp complete_job(job_id, job_state) do
-    # Log job state for debugging
-    Logger.info("Completing job #{job_id}: completed=#{MapSet.size(job_state.completed_tasks)}, failed=#{MapSet.size(job_state.failed_tasks)}, pending=#{MapSet.size(job_state.pending_tasks)}")
-
     # Mark any remaining pending tasks as upstream_failed or skipped
     # (these tasks never ran because their dependencies failed or weren't dispatched)
     if MapSet.size(job_state.pending_tasks) > 0 do
       mark_blocked_tasks_as_upstream_failed(job_id, job_state)
     end
 
-    # Determine final status based on ACTUAL task failures, not blocked/skipped tasks
-    # A job succeeds if all tasks that RAN completed successfully
-    # Tasks that were skipped due to upstream failures don't count as job failures
-    final_status = if MapSet.size(job_state.failed_tasks) > 0, do: :failed, else: :success
+    # Determine final status from Postgres (source of truth), not ETS state
+    # This prevents race conditions where ETS state gets out of sync with DB
+    task_executions = Workflows.list_task_executions_for_job(job_id)
+
+    # Count tasks that actually failed (not upstream_failed/skipped)
+    actual_failures = Enum.count(task_executions, fn te -> te.status == :failed end)
+
+    # Job succeeds if no tasks actually failed
+    # Tasks marked as upstream_failed or skipped don't count as job failures
+    final_status = if actual_failures > 0, do: :failed, else: :success
 
     # Update Job in Postgres
     job = Workflows.get_job!(job_id)
@@ -417,7 +420,7 @@ defmodule Cascade.Runtime.Scheduler do
     # Remove from active state
     StateManager.remove_job_state(job_id)
 
-    Logger.info("Job completed: job_id=#{job_id}, status=#{final_status}")
+    Logger.info("Job completed: job_id=#{job_id}, status=#{final_status}, actual_failures=#{actual_failures}")
   end
 
   defp publish_job_event(job_id, dag_id, status) do

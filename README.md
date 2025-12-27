@@ -19,13 +19,14 @@ Cascade is an Airflow-inspired workflow orchestrator that fixes key design limit
 ## Features
 
 - ✅ **Elixir DSL** - Define workflows as code with clean, functional syntax
-- ✅ **Distributed Execution** - Run across Erlang clusters with automatic load balancing
+- ✅ **Worker Pool Execution** - Concurrent task execution with configurable worker pool
 - ✅ **Hybrid Workflows** - Mix local Elixir tasks with serverless Lambda functions
 - ✅ **Data Flow** - Automatic data passing between dependent tasks via S3
 - ✅ **Real-time Monitoring** - Phoenix LiveView UI with live job status updates
-- ✅ **Fault Tolerance** - Automatic task reassignment on worker failure
 - ✅ **Artifact Storage** - S3 integration for large task outputs
 - ✅ **DAG Validation** - Compile-time cycle detection and dependency validation
+- 📋 **Distributed Execution** - Multi-node clustering with load balancing (Phase 2)
+- 📋 **Fault Tolerance** - Automatic task reassignment on worker failure (Phase 2)
 
 ## Architecture
 
@@ -442,7 +443,7 @@ Cascade.Workflows.get_job_with_details!(job.id)
 
 ### Web UI
 
-Navigate to `http://localhost:4000` (coming in Phase 4)
+Navigate to `http://localhost:4000` or visit the [live demo](https://cascade.nauths.io)
 
 ## Monitoring
 
@@ -669,11 +670,12 @@ See the [Terraform README](terraform/README.md) for complete deployment instruct
 - State management
 - Database persistence
 
-### Phase 2: Distribution ✅ COMPLETE
+### Phase 2: Distribution 📋 PLANNED
 - Erlang clustering
-- Worker coordination
-- Load balancing
-- Fault tolerance
+- Worker heartbeat and registration
+- Distributed worker coordination
+- Cross-node load balancing
+- Fault tolerance and worker reassignment
 
 ### Phase 3: Cloud Integration ✅ COMPLETE
 - AWS Lambda execution
@@ -681,11 +683,12 @@ See the [Terraform README](terraform/README.md) for complete deployment instruct
 - Data flow between tasks
 - Mix task for job triggering
 
-### Phase 4: LiveView UI 🚧 IN PROGRESS
+### Phase 4: LiveView UI ✅ COMPLETE
 - Real-time job monitoring
-- DAG visualization
-- Manual job triggers
-- Worker health dashboard
+- DAG list and detail views
+- Manual job triggers with context
+- Job execution tracking
+- Task-level execution details
 
 ### Phase 5: Advanced Features 📋 PLANNED
 - Cron-based scheduling
