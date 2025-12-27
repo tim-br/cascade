@@ -311,10 +311,13 @@ defmodule Cascade.Runtime.Scheduler do
 
         ready_tasks = Validator.get_ready_tasks(dag_definition, completed_tasks, failed_tasks)
 
-        # Filter out tasks that are already running
+        # Filter out tasks that are already running, completed, failed, or skipped
         ready_tasks =
           Enum.reject(ready_tasks, fn task_id ->
-            Map.has_key?(job_state.running_tasks, task_id)
+            Map.has_key?(job_state.running_tasks, task_id) or
+              MapSet.member?(job_state.completed_tasks, task_id) or
+              MapSet.member?(job_state.failed_tasks, task_id) or
+              MapSet.member?(job_state.skipped_tasks, task_id)
           end)
 
         # Dispatch each ready task with context from completed dependencies

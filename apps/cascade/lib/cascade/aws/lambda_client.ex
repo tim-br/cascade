@@ -39,8 +39,8 @@ defmodule Cascade.AWS.LambdaClient do
       payload when is_map(payload) -> Jason.encode!(payload)
     end
 
-    Logger.info("LambdaClient: Invoking #{function_name} (#{invocation_type})")
-    Logger.debug("LambdaClient: Payload: #{json_payload}")
+    Logger.info("🚀 [LAMBDA_CLIENT] Invoking #{function_name} (#{invocation_type})")
+    Logger.debug("📦 [LAMBDA_PAYLOAD] #{json_payload}")
 
     # Map invocation type to AWS API parameter
     invoke_type = case invocation_type do
@@ -66,7 +66,8 @@ defmodule Cascade.AWS.LambdaClient do
 
       {:ok, response} ->
         status = response["statusCode"] || response[:status_code] || "unknown"
-        Logger.error("LambdaClient: Invocation failed with status #{status}")
+        Logger.error("❌ [LAMBDA_HTTP_ERROR] function=#{function_name}, status=#{status}")
+        Logger.error("Full response: #{inspect(response, pretty: true, limit: :infinity)}")
         {:error, "Lambda invocation failed: HTTP #{status}"}
 
       {:error, {:http_error, 429, _}} ->

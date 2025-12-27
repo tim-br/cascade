@@ -156,8 +156,27 @@ defmodule Cascade.Runtime.StateManager do
         {:reply, {:ok, updated_state}, state}
 
       [] ->
-        Logger.warning("⚠️  [STATUS_UPDATE_FAILED] job=#{job_id}, task=#{task_id} - job not found in ETS")
-        {:reply, {:error, :job_not_found}, state}
+        # Job not in ETS - check if it's already completed in Postgres
+        # This handles the race condition where workers report status after job completion
+        case check_job_completed_in_postgres(job_id) do
+          {:ok, :completed} ->
+            # Job is already complete - this is a late status update from a worker
+            # Persist the status update to Postgres for record-keeping
+            Logger.info("ℹ️  [STATUS_UPDATE_LATE] job=#{job_id}, task=#{task_id}, status=#{new_status} - job already completed, persisting to Postgres only")
+            persist_task_status(job_id, task_id, new_status, opts)
+            # Return success to prevent error propagation
+            {:reply, {:ok, :job_already_completed}, state}
+
+          {:ok, :not_completed} ->
+            # Job exists but not complete - this shouldn't happen (job should be in ETS)
+            Logger.error("⚠️  [STATUS_UPDATE_FAILED] job=#{job_id}, task=#{task_id} - job not in ETS but exists in Postgres as running")
+            {:reply, {:error, :job_not_found}, state}
+
+          {:error, :not_found} ->
+            # Job doesn't exist at all
+            Logger.error("⚠️  [STATUS_UPDATE_FAILED] job=#{job_id}, task=#{task_id} - job not found in ETS or Postgres")
+            {:reply, {:error, :job_not_found}, state}
+        end
     end
   end
 
@@ -237,6 +256,23 @@ defmodule Cascade.Runtime.StateManager do
   end
 
   ## Private Functions
+
+  defp check_job_completed_in_postgres(job_id) do
+    # Check if the job exists and if it's completed in Postgres
+    # Use try/catch because Workflows.get_job!/1 raises on not found
+    try do
+      job = Workflows.get_job!(job_id)
+
+      if job.status in [:success, :failed] do
+        {:ok, :completed}
+      else
+        {:ok, :not_completed}
+      end
+    rescue
+      Ecto.NoResultsError ->
+        {:error, :not_found}
+    end
+  end
 
   defp apply_task_status_change(job_state, task_id, status, opts) do
     case status do
