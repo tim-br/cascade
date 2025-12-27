@@ -17,7 +17,7 @@ defmodule CascadeWeb.DAGDetailLive do
       socket
       |> assign(:page_title, dag.name)
       |> assign(:dag, dag)
-      |> assign(:context_json, "{}")
+      |> assign(:context_json, default_context_json(dag.name))
       |> load_jobs()
 
     {:ok, socket}
@@ -69,22 +69,31 @@ defmodule CascadeWeb.DAGDetailLive do
     assign(socket, :recent_jobs, jobs)
   end
 
+  defp default_context_json(dag_name) do
+    case dag_name do
+      "cloud_test_pipeline" ->
+        Jason.encode!(%{
+          "input_data" => [10, 20, 30, 40, 50],
+          "multiplier" => 3
+        }, pretty: true)
+
+      "literary_analysis_pipeline" ->
+        Jason.encode!(%{
+          "book1_id" => "1342",
+          "book2_id" => "11",
+          "analysis_depth" => "basic"
+        }, pretty: true)
+
+      _ ->
+        "{}"
+    end
+  end
+
   @impl true
   def render(assigns) do
     ~H"""
     <div class="min-h-screen bg-base-200">
-      <div class="navbar bg-base-100 shadow-lg">
-        <div class="flex-1">
-          <a href="/" class="btn btn-ghost text-xl">🌊 Cascade</a>
-        </div>
-        <div class="flex-none">
-          <ul class="menu menu-horizontal px-1">
-            <li><.link navigate={~p"/"}>Dashboard</.link></li>
-            <li><.link navigate={~p"/dags"}>DAGs</.link></li>
-            <li><.link navigate={~p"/workers"}>Workers</.link></li>
-          </ul>
-        </div>
-      </div>
+      <.navbar current_page="dags" />
 
       <div class="container mx-auto p-6">
         <div class="mb-4">
@@ -143,7 +152,7 @@ defmodule CascadeWeb.DAGDetailLive do
                 phx-change="update_context"
               ><%= @context_json %></textarea>
               <label class="label">
-                <span class="label-text-alt">Enter valid JSON or leave empty for default</span>
+                <span class="label-text-alt">💡 Tip: Pre-filled with example values - click "Trigger Job" to test!</span>
               </label>
             </div>
             <button type="submit" class="btn btn-primary">

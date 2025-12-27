@@ -76,18 +76,7 @@ defmodule CascadeWeb.JobDetailLive do
   def render(assigns) do
     ~H"""
     <div class="min-h-screen bg-base-200">
-      <div class="navbar bg-base-100 shadow-lg">
-        <div class="flex-1">
-          <a href="/" class="btn btn-ghost text-xl">🌊 Cascade</a>
-        </div>
-        <div class="flex-none">
-          <ul class="menu menu-horizontal px-1">
-            <li><.link navigate={~p"/"}>Dashboard</.link></li>
-            <li><.link navigate={~p"/dags"}>DAGs</.link></li>
-            <li><.link navigate={~p"/workers"}>Workers</.link></li>
-          </ul>
-        </div>
-      </div>
+      <.navbar current_page="dashboard" />
 
       <div class="container mx-auto p-6">
         <div class="mb-4">

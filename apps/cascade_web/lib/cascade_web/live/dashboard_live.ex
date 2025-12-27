@@ -36,7 +36,8 @@ defmodule CascadeWeb.DashboardLive do
 
   @impl true
   def handle_info({:worker_event, _event}, socket) do
-    {:noreply, assign(socket, :workers, StateManager.get_active_workers())}
+    worker_count = length(Supervisor.which_children(Cascade.Runtime.WorkerSupervisor))
+    {:noreply, assign(socket, :worker_count, worker_count)}
   end
 
   @impl true
@@ -49,7 +50,9 @@ defmodule CascadeWeb.DashboardLive do
     active_jobs = Workflows.list_active_jobs()
     all_dags = Workflows.list_dags()
     enabled_dags = Workflows.list_enabled_dags()
-    workers = StateManager.get_active_workers()
+
+    # For single-node deployment, get worker count from supervisor
+    worker_count = length(Supervisor.which_children(Cascade.Runtime.WorkerSupervisor))
 
     # Calculate statistics
     total_jobs = length(all_jobs)
@@ -70,8 +73,7 @@ defmodule CascadeWeb.DashboardLive do
     |> assign(:active_jobs_count, active_jobs_count)
     |> assign(:active_jobs, active_jobs)
     |> assign(:recent_jobs, recent_jobs)
-    |> assign(:workers, workers)
-    |> assign(:worker_count, length(workers))
+    |> assign(:worker_count, worker_count)
     |> assign(:job_stats, job_stats)
   end
 
@@ -86,25 +88,14 @@ defmodule CascadeWeb.DashboardLive do
   def render(assigns) do
     ~H"""
     <div class="min-h-screen bg-base-200">
-      <div class="navbar bg-base-100 shadow-lg">
-        <div class="flex-1">
-          <a href="/" class="btn btn-ghost text-xl">🌊 Cascade</a>
-        </div>
-        <div class="flex-none">
-          <ul class="menu menu-horizontal px-1">
-            <li><.link navigate={~p"/"} class="font-bold">Dashboard</.link></li>
-            <li><.link navigate={~p"/dags"}>DAGs</.link></li>
-            <li><.link navigate={~p"/workers"}>Workers</.link></li>
-          </ul>
-        </div>
-      </div>
+      <.navbar current_page="dashboard" />
 
       <div class="container mx-auto p-6">
         <h1 class="text-4xl font-bold mb-6">Dashboard</h1>
 
         <!-- Stats Cards -->
         <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
-          <div class="stat bg-base-100 shadow-lg rounded-lg">
+          <.link navigate={~p"/dags"} class="stat bg-base-100 shadow-lg rounded-lg hover:shadow-xl transition-shadow cursor-pointer">
             <div class="stat-figure text-primary">
               <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" class="inline-block w-8 h-8 stroke-current">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"></path>
@@ -113,9 +104,12 @@ defmodule CascadeWeb.DashboardLive do
             <div class="stat-title">Total DAGs</div>
             <div class="stat-value text-primary"><%= @total_dags %></div>
             <div class="stat-desc"><%= @enabled_dags %> enabled</div>
-          </div>
+          </.link>
 
-          <div class="stat bg-base-100 shadow-lg rounded-lg">
+          <div class={["stat bg-base-100 shadow-lg rounded-lg relative", if(@active_jobs_count > 0, do: "hover:shadow-xl transition-shadow cursor-pointer")]}>
+            <%= if @active_jobs_count > 0 do %>
+              <a href="#active-jobs" class="absolute inset-0"></a>
+            <% end %>
             <div class="stat-figure text-secondary">
               <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" class="inline-block w-8 h-8 stroke-current">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6V4m0 2a2 2 0 100 4m0-4a2 2 0 110 4m-6 8a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4m6 6v10m6-2a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4"></path>

@@ -53,18 +53,7 @@ defmodule CascadeWeb.DAGListLive do
   def render(assigns) do
     ~H"""
     <div class="min-h-screen bg-base-200">
-      <div class="navbar bg-base-100 shadow-lg">
-        <div class="flex-1">
-          <a href="/" class="btn btn-ghost text-xl">🌊 Cascade</a>
-        </div>
-        <div class="flex-none">
-          <ul class="menu menu-horizontal px-1">
-            <li><.link navigate={~p"/"}>Dashboard</.link></li>
-            <li><.link navigate={~p"/dags"} class="font-bold">DAGs</.link></li>
-            <li><.link navigate={~p"/workers"}>Workers</.link></li>
-          </ul>
-        </div>
-      </div>
+      <.navbar current_page="dags" />
 
       <div class="container mx-auto p-6">
         <div class="flex justify-between items-center mb-6">
@@ -91,9 +80,9 @@ defmodule CascadeWeb.DAGListLive do
             <%= for dag <- @dags do %>
               <div class="card bg-base-100 shadow-lg">
                 <div class="card-body">
-                  <div class="flex justify-between items-start mb-2">
-                    <h2 class="card-title">{dag.name}</h2>
-                    <div class="form-control">
+                  <div class="flex justify-between items-start mb-2 gap-2">
+                    <h2 class="card-title flex-1 min-w-0 truncate">{dag.name}</h2>
+                    <div class="form-control flex-shrink-0">
                       <label class="label cursor-pointer gap-2">
                         <span class="label-text">Enabled</span>
                         <input

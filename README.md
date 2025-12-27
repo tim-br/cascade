@@ -2,6 +2,8 @@
 
 **A modern, distributed workflow orchestration engine built in Elixir**
 
+🔗 **[Live Demo](https://cascade.nauths.io)** | 📖 [Documentation](#installation) | 🐛 [Issues](https://github.com/tim-br/cascade/issues)
+
 Cascade is an Airflow-inspired workflow orchestrator that fixes key design limitations:
 
 > **Note**: Cascade is an Elixir umbrella application with two main components:

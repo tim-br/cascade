@@ -22,7 +22,9 @@ defmodule Cascade.Workflows do
 
   """
   def list_dags do
-    Repo.all(DAG)
+    DAG
+    |> order_by([d], asc: d.name)
+    |> Repo.all()
   end
 
   @doc """

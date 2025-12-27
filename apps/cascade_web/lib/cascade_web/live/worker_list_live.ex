@@ -35,24 +35,23 @@ defmodule CascadeWeb.WorkerListLive do
   end
 
   defp load_workers(socket) do
-    workers = StateManager.get_active_workers()
+    # For single-node deployment, get workers from supervisor
+    worker_processes = Supervisor.which_children(Cascade.Runtime.WorkerSupervisor)
+    worker_count = length(worker_processes)
 
+    # Build simple worker stats for display
     worker_stats =
-      workers
-      |> Enum.map(fn {node, data} ->
+      Enum.map(1..worker_count, fn id ->
         %{
-          node: node,
-          last_seen: data.last_seen,
-          capacity: data.capacity,
-          active_tasks: data.active_tasks,
-          status: worker_status(data.last_seen)
+          node: node(),
+          worker_id: id,
+          status: :online
         }
       end)
-      |> Enum.sort_by(& &1.node)
 
-    total_capacity = Enum.reduce(worker_stats, 0, & &1.capacity + &2)
-    total_active = Enum.reduce(worker_stats, 0, & &1.active_tasks + &2)
-    online_workers = Enum.count(worker_stats, & &1.status == :online)
+    total_capacity = worker_count
+    total_active = 0  # Would need to query running tasks
+    online_workers = worker_count
 
     socket
     |> assign(:workers, worker_stats)
@@ -75,18 +74,7 @@ defmodule CascadeWeb.WorkerListLive do
   def render(assigns) do
     ~H"""
     <div class="min-h-screen bg-base-200">
-      <div class="navbar bg-base-100 shadow-lg">
-        <div class="flex-1">
-          <a href="/" class="btn btn-ghost text-xl">🌊 Cascade</a>
-        </div>
-        <div class="flex-none">
-          <ul class="menu menu-horizontal px-1">
-            <li><.link navigate={~p"/"}>Dashboard</.link></li>
-            <li><.link navigate={~p"/dags"}>DAGs</.link></li>
-            <li><.link navigate={~p"/workers"} class="font-bold">Workers</.link></li>
-          </ul>
-        </div>
-      </div>
+      <.navbar current_page="workers" />
 
       <div class="container mx-auto p-6">
         <h1 class="text-4xl font-bold mb-6">Worker Cluster</h1>

@@ -123,16 +123,27 @@ defmodule Cascade.Runtime.Scheduler do
         if job_complete?(job_state) do
           complete_job(job_id, job_state)
         else
-          if all_remaining_tasks_blocked?(job_state) do
-            Logger.error(
-              "All remaining tasks blocked for job #{job_id} - marking blocked tasks and failing job"
-            )
+          # Dispatch next ready tasks
+          dispatch_ready_tasks(job_id, job_state.dag_definition)
 
-            mark_blocked_tasks_as_upstream_failed(job_id, job_state)
-            complete_job(job_id, job_state)
-          else
-            # Dispatch next ready tasks
-            dispatch_ready_tasks(job_id, job_state.dag_definition)
+          # Re-check if all remaining tasks are blocked after dispatching
+          case StateManager.get_job_state(job_id) do
+            {:ok, updated_job_state} ->
+              if job_complete?(updated_job_state) do
+                complete_job(job_id, updated_job_state)
+              else
+                if all_remaining_tasks_blocked?(updated_job_state) do
+                  Logger.error(
+                    "All remaining tasks blocked for job #{job_id} after task completion - marking blocked tasks and failing job"
+                  )
+
+                  mark_blocked_tasks_as_upstream_failed(job_id, updated_job_state)
+                  complete_job(job_id, updated_job_state)
+                end
+              end
+
+            {:error, _} ->
+              Logger.warning("Failed to get updated job state for job_id=#{job_id}")
           end
         end
 
