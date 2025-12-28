@@ -1,14 +1,28 @@
 import Config
 
-# Configure your database
-config :cascade, Cascade.Repo,
-  username: "postgres",
-  password: "postgres",
-  hostname: "localhost",
-  database: "cascade_dev",
-  stacktrace: true,
-  show_sensitive_data_on_connection_error: true,
-  pool_size: 10
+# Configure your database - defaults to SQLite for zero-config setup
+# Set DATABASE_URL environment variable to use Postgres instead
+if System.get_env("DATABASE_URL") do
+  # Use Postgres when DATABASE_URL is set
+  config :cascade, Cascade.Repo,
+    url: System.get_env("DATABASE_URL"),
+    stacktrace: true,
+    show_sensitive_data_on_connection_error: true,
+    pool_size: 10
+
+  config :cascade,
+    storage_backend: Cascade.Storage.PostgresBackend
+else
+  # Default to SQLite for zero-config local development
+  config :cascade, Cascade.Repo,
+    database: Path.expand("../cascade_dev.db", __DIR__),
+    stacktrace: true,
+    show_sensitive_data_on_connection_error: true,
+    pool_size: 5
+
+  config :cascade,
+    storage_backend: Cascade.Storage.SQLiteBackend
+end
 
 # For development, we disable any cache and enable
 # debugging and code reloading.

@@ -11,40 +11,53 @@ config :cascade_web, CascadeWeb.Endpoint,
   http: [port: String.to_integer(System.get_env("PORT", "4000"))]
 
 if config_env() == :prod do
-  database_url =
-    System.get_env("DATABASE_URL") ||
-      raise """
-      environment variable DATABASE_URL is missing.
-      For example: ecto://USER:PASS@HOST/DATABASE
-      """
+  # Production supports both SQLite (default) and Postgres (when DATABASE_URL is set)
+  # This allows simple deployments with SQLite or scaled deployments with Postgres
+  if database_url = System.get_env("DATABASE_URL") do
+    # Use Postgres when DATABASE_URL is set
+    maybe_ipv6 = if System.get_env("ECTO_IPV6") in ~w(true 1), do: [:inet6], else: []
 
-  maybe_ipv6 = if System.get_env("ECTO_IPV6") in ~w(true 1), do: [:inet6], else: []
+    # Extract hostname from DATABASE_URL for SNI (Server Name Indication)
+    db_hostname =
+      database_url
+      |> URI.parse()
+      |> Map.get(:host)
+      |> to_charlist()
 
-  # Extract hostname from DATABASE_URL for SNI (Server Name Indication)
-  db_hostname =
-    database_url
-    |> URI.parse()
-    |> Map.get(:host)
-    |> to_charlist()
-
-  # Configure SSL with proper certificate verification for RDS
-  # Uses AWS RDS CA bundle downloaded in Dockerfile
-  ssl_opts = [
-    verify: :verify_peer,
-    cacertfile: "/usr/local/share/ca-certificates/aws/rds-ca-bundle.pem",
-    server_name_indication: db_hostname,
-    customize_hostname_check: [
-      match_fun: :public_key.pkix_verify_hostname_match_fun(:https)
+    # Configure SSL with proper certificate verification for RDS
+    # Uses AWS RDS CA bundle downloaded in Dockerfile
+    ssl_opts = [
+      verify: :verify_peer,
+      cacertfile: "/usr/local/share/ca-certificates/aws/rds-ca-bundle.pem",
+      server_name_indication: db_hostname,
+      customize_hostname_check: [
+        match_fun: :public_key.pkix_verify_hostname_match_fun(:https)
+      ]
     ]
-  ]
 
-  config :cascade, Cascade.Repo,
-    ssl: ssl_opts,
-    url: database_url,
-    pool_size: String.to_integer(System.get_env("POOL_SIZE") || "10"),
-    # For machines with several cores, consider starting multiple pools of `pool_size`
-    # pool_count: 4,
-    socket_options: maybe_ipv6
+    config :cascade, Cascade.Repo,
+      adapter: Ecto.Adapters.Postgres,
+      ssl: ssl_opts,
+      url: database_url,
+      pool_size: String.to_integer(System.get_env("POOL_SIZE") || "10"),
+      socket_options: maybe_ipv6
+
+    # Use Postgres backend
+    config :cascade,
+      storage_backend: Cascade.Storage.PostgresBackend
+  else
+    # Default to SQLite for simple production deployments
+    db_path = System.get_env("SQLITE_DATABASE_PATH") || "/data/cascade_prod.db"
+
+    config :cascade, Cascade.Repo,
+      adapter: Ecto.Adapters.SQLite3,
+      database: db_path,
+      pool_size: String.to_integer(System.get_env("POOL_SIZE") || "5")
+
+    # Use SQLite backend
+    config :cascade,
+      storage_backend: Cascade.Storage.SQLiteBackend
+  end
 
   # The secret key base is used to sign/encrypt cookies and other secrets.
   # A default value is used in config/dev.exs and config/test.exs but you
