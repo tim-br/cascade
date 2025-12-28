@@ -13,6 +13,9 @@ defmodule Cascade.Application do
       {DNSCluster, query: Application.get_env(:cascade, :dns_cluster_query) || :ignore},
       {Phoenix.PubSub, name: Cascade.PubSub},
 
+      # DAG Loader (loads DAGs from directory/S3)
+      Cascade.DagLoader,
+
       # Cascade Runtime
       {Cascade.Runtime.StateManager, []},
       {Cascade.Runtime.WorkerSupervisor, []},

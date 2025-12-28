@@ -18,13 +18,14 @@ Cascade is an Airflow-inspired workflow orchestrator that fixes key design limit
 
 ## Features
 
+- ✅ **Auto-Loading DAGs** - Automatic hot-reloading from local directory or S3 bucket
 - ✅ **Elixir DSL** - Define workflows as code with clean, functional syntax
 - ✅ **Worker Pool Execution** - Concurrent task execution with configurable worker pool
 - ✅ **Hybrid Workflows** - Mix local Elixir tasks with serverless Lambda functions
 - ✅ **Data Flow** - Automatic data passing between dependent tasks via S3
 - ✅ **Real-time Monitoring** - Phoenix LiveView UI with live job status updates
 - ✅ **Artifact Storage** - S3 integration for large task outputs
-- ✅ **DAG Validation** - Compile-time cycle detection and dependency validation
+- ✅ **DAG Validation** - Comprehensive validation with cycle detection
 - 📋 **Distributed Execution** - Multi-node clustering with load balancing (Phase 2)
 - 📋 **Fault Tolerance** - Automatic task reassignment on worker failure (Phase 2)
 
@@ -387,26 +388,79 @@ process: [
 
 ## Loading DAGs
 
-### From Elixir Modules
+Cascade features **automatic DAG loading** that improves on Airflow's approach. DAGs are automatically loaded from a directory on startup and hot-reloaded when files change.
 
-```elixir
-# In IEx or application startup
-Cascade.Examples.DAGLoader.load_all()
+### Auto-Loading (Recommended) 🆕
 
-# Or load specific DAG
-Cascade.Examples.DAGLoader.load_etl_dag()
+Simply place DAG definition files in the `./dags` directory (or custom location):
+
+**JSON Format:**
+```json
+// dags/my_pipeline.json
+{
+  "nodes": [
+    {"id": "extract", "type": "local", "config": {...}},
+    {"id": "transform", "type": "local", "config": {...}, "depends_on": ["extract"]}
+  ],
+  "edges": [{"from": "extract", "to": "transform"}],
+  "description": "My ETL Pipeline",
+  "enabled": true
+}
 ```
 
-### Programmatically
+**Elixir Format (for dynamic DAGs):**
+```elixir
+# dags/dynamic_pipeline.exs
+tasks = for i <- 1..10 do
+  %{"id" => "task_#{i}", "type" => "local", "config" => %{...}}
+end
+
+%{
+  "nodes" => tasks,
+  "edges" => [...],
+  "description" => "Dynamically generated with 10 parallel tasks"
+}
+```
+
+**Features:**
+- ✅ **Hot-reloading**: Changes detected automatically every 30s (configurable)
+- ✅ **Multiple sources**: Local directory + S3 bucket (both simultaneously)
+- ✅ **Change detection**: Only reloads modified DAGs (checksum-based)
+- ✅ **Validation**: Comprehensive validation before loading (cycles, types, etc.)
+- ✅ **Graceful errors**: Bad DAGs logged, don't crash the loader
+- ✅ **Deletion handling**: DAGs automatically disabled when files removed
+
+**Configuration:**
+```bash
+# Local directory (default: ./dags)
+export DAGS_DIR="./dags"
+
+# Scan interval in seconds (default: 30)
+export DAGS_SCAN_INTERVAL=30
+
+# Enable/disable (default: true)
+export DAGS_ENABLED=true
+
+# Optional: Load from S3
+export DAGS_S3_BUCKET="my-dags-bucket"
+export DAGS_S3_PREFIX="production/dags/"
+```
+
+**See:** [dags/README.md](dags/README.md) and [docs/DAG_LOADING.md](docs/DAG_LOADING.md) for complete documentation.
+
+### Programmatic Loading (Legacy)
+
+You can still load DAGs programmatically if needed:
 
 ```elixir
-definition = MyApp.MyDAG.get_dag_definition()
+# From Elixir modules
+Cascade.Examples.DAGLoader.load_all()
 
+# Or create directly
 Cascade.Workflows.create_dag(%{
-  name: definition["name"],
-  description: definition["metadata"]["description"],
-  schedule: definition["metadata"]["schedule"],
-  definition: definition,
+  name: "my_dag",
+  description: "My DAG",
+  definition: %{"nodes" => [...], "edges" => [...]},
   enabled: true
 })
 ```
@@ -690,15 +744,17 @@ See the [Terraform README](terraform/README.md) for complete deployment instruct
 - Job execution tracking
 - Task-level execution details
 
-### Phase 5: Advanced Features 📋 PLANNED
-- Cron-based scheduling
-- Retry with exponential backoff
-- Task timeout enforcement
-- Error callbacks
-- Job cancellation
-- Authentication/authorization
-- Telemetry/metrics
-- DAG versioning
+### Phase 5: Advanced Features 🚧 IN PROGRESS
+- ✅ **Auto-loading DAGs** - Directory-based with hot-reloading (JSON + Elixir)
+- ✅ **S3 DAG source** - Load DAGs from S3 bucket
+- 📋 Cron-based scheduling
+- 📋 Retry with exponential backoff
+- 📋 Task timeout enforcement
+- 📋 Error callbacks
+- 📋 Job cancellation
+- 📋 Authentication/authorization
+- 📋 Telemetry/metrics
+- 📋 DAG versioning
 
 ## Contributing
 
