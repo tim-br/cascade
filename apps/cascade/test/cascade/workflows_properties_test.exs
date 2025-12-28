@@ -23,7 +23,7 @@ defmodule Cascade.WorkflowsPropertiesTest do
   end
 
   describe "claim_task properties" do
-    property "completed tasks can never be claimed", [:verbose] do
+    property "completed tasks can never be claimed" do
       forall status <- oneof([:success, :upstream_failed]) do
         # Setup
         {:ok, dag, job} = create_test_dag_and_job()
@@ -47,7 +47,7 @@ defmodule Cascade.WorkflowsPropertiesTest do
       end
     end
 
-    property "failed tasks can always be claimed (for retry)", [:verbose] do
+    property "failed tasks can always be claimed (for retry)" do
       forall worker_id <- worker_id_gen() do
         # Setup
         {:ok, dag, job} = create_test_dag_and_job()
@@ -72,7 +72,7 @@ defmodule Cascade.WorkflowsPropertiesTest do
       end
     end
 
-    property "same worker can claim a task multiple times (idempotent)", [:verbose] do
+    property "same worker can claim a task multiple times (idempotent)" do
       forall {worker_id, claim_count} <- {worker_id_gen(), integer(1, 5)} do
         # Setup
         {:ok, dag, job} = create_test_dag_and_job()
@@ -99,7 +99,7 @@ defmodule Cascade.WorkflowsPropertiesTest do
       end
     end
 
-    property "different workers cannot claim the same pending task", [:verbose] do
+    property "different workers cannot claim the same pending task" do
       forall {worker1, worker2} <- {worker_id_gen(), worker_id_gen()} do
         implies worker1 != worker2 do
           # Setup
@@ -127,7 +127,7 @@ defmodule Cascade.WorkflowsPropertiesTest do
       end
     end
 
-    property "claim preserves task status for non-terminal states", [:verbose] do
+    property "claim preserves task status for non-terminal states" do
       forall {initial_status, worker_id} <- {oneof([:pending, :running, :failed]), worker_id_gen()} do
         # Setup
         {:ok, dag, job} = create_test_dag_and_job()
@@ -136,7 +136,7 @@ defmodule Cascade.WorkflowsPropertiesTest do
           job_id: job.id,
           task_id: "test_task",
           status: initial_status,
-          execution_type: :local
+          execution_type: "local"
         }
 
         attrs =
@@ -163,7 +163,7 @@ defmodule Cascade.WorkflowsPropertiesTest do
       end
     end
 
-    property "successful claim sets claimed_by_worker and claimed_at", [:verbose] do
+    property "successful claim sets claimed_by_worker and claimed_at" do
       forall worker_id <- worker_id_gen() do
         # Setup
         {:ok, dag, job} = create_test_dag_and_job()
@@ -194,7 +194,7 @@ defmodule Cascade.WorkflowsPropertiesTest do
   end
 
   describe "claim_task safety properties" do
-    property "CRITICAL: successful tasks cannot transition back to running", [:verbose] do
+    property "CRITICAL: successful tasks cannot transition back to running" do
       forall worker_id <- worker_id_gen() do
         # Setup
         {:ok, dag, job} = create_test_dag_and_job()
@@ -224,7 +224,7 @@ defmodule Cascade.WorkflowsPropertiesTest do
       end
     end
 
-    property "CRITICAL: upstream_failed tasks cannot be re-executed", [:verbose] do
+    property "CRITICAL: upstream_failed tasks cannot be re-executed" do
       forall worker_id <- worker_id_gen() do
         # Setup
         {:ok, dag, job} = create_test_dag_and_job()
