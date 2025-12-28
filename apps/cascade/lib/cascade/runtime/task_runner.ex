@@ -93,6 +93,11 @@ defmodule Cascade.Runtime.TaskRunner do
         # Task already completed (success or upstream_failed), cannot be re-executed
         Logger.debug("Task already completed, skipping: job_id=#{job_id}, task_id=#{task_id}")
         {:noreply, state}
+
+      {:error, :task_not_found} ->
+        # Task or job not found (likely deleted during test cleanup), skip gracefully
+        Logger.debug("Task not found (job or task deleted): job_id=#{job_id}, task_id=#{task_id}")
+        {:noreply, state}
     end
   end
 
