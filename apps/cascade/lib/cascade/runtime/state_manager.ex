@@ -109,7 +109,16 @@ defmodule Cascade.Runtime.StateManager do
   @impl true
   def handle_call({:update_task_status, job_id, task_id, new_status, opts}, _from, state) do
     # Find the task execution in Postgres
-    task_executions = Workflows.list_task_executions_for_job(job_id)
+    # Wrap in try-rescue to handle job deleted during test cleanup
+    task_executions =
+      try do
+        Workflows.list_task_executions_for_job(job_id)
+      rescue
+        Ecto.NoResultsError ->
+          Logger.debug("Job not found (likely deleted): job_id=#{job_id}")
+          []
+      end
+
     task_execution = Enum.find(task_executions, fn te -> te.task_id == task_id end)
 
     if task_execution do
