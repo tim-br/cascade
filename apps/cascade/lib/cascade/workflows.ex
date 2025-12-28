@@ -8,7 +8,7 @@ defmodule Cascade.Workflows do
   (SQLite, Postgres, or DynamoDB) based on runtime configuration.
   """
 
-  alias Cascade.Workflows.{DAG, Job, TaskExecution, WorkerHeartbeat}
+  alias Cascade.Workflows.{DAG, Job, TaskExecution}
 
   @doc """
   Returns the configured storage backend module.
