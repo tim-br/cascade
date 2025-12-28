@@ -118,12 +118,6 @@ def lambda_handler(event, context):
         error_msg = f"Failed to analyze word frequency: {str(e)}"
         print(f"ERROR: {error_msg}")
 
-        return {
-            "statusCode": 500,
-            "body": {
-                "job_id": job_id,
-                "task_id": task_id,
-                "status": "failed",
-                "error": error_msg
-            }
-        }
+        # Re-raise the exception so Lambda properly marks it as failed
+        # Don't return statusCode: 500 as that doesn't signal failure to Lambda
+        raise

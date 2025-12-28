@@ -309,27 +309,35 @@ defmodule Cascade.Workflows do
         |> Repo.one()
 
       if task_execution do
-        # Convert worker_id to string for comparison and storage
-        worker_id_str = to_string(worker_id)
+        # Check if task is already successfully completed or skipped
+        # These tasks should NEVER be re-executed
+        # Note: :failed tasks can be retried, so they're claimable
+        if task_execution.status in [:success, :upstream_failed] do
+          Repo.rollback(:already_completed)
+        else
+          # Convert worker_id to string for comparison and storage
+          worker_id_str = to_string(worker_id)
 
-        case task_execution.claimed_by_worker do
-          nil ->
-            # Not claimed yet, claim it
-            {:ok, _} =
-              update_task_execution(task_execution, %{
-                claimed_by_worker: worker_id_str,
-                claimed_at: DateTime.utc_now()
-              })
+          case task_execution.claimed_by_worker do
+            nil ->
+              # Not claimed yet, claim it
+              {:ok, _} =
+                update_task_execution(task_execution, %{
+                  claimed_by_worker: worker_id_str,
+                  claimed_at: DateTime.utc_now()
+                })
 
-            :claimed
+              :claimed
 
-          ^worker_id_str ->
-            # Already claimed by this worker
-            :claimed
+            ^worker_id_str ->
+              # Already claimed by this worker (idempotent claim for retry scenarios)
+              # Only allow if task is still pending or running
+              :claimed
 
-          _other_worker ->
-            # Already claimed by a different worker
-            Repo.rollback(:already_claimed)
+            _other_worker ->
+              # Already claimed by a different worker
+              Repo.rollback(:already_claimed)
+          end
         end
       else
         Repo.rollback(:task_not_found)

@@ -221,10 +221,14 @@ defmodule Cascade.Runtime.Scheduler do
             "Retrying task #{task_id} (attempt #{new_retry_count + 1}/#{max_retries + 1}) for job #{job_id}"
           )
 
-          # Update retry count in Postgres
+          # Reset task to pending status and update retry count
+          # This allows the task to be claimed and executed again
           Workflows.update_task_execution(task_execution, %{
+            status: :pending,
             retry_count: new_retry_count,
-            error: "Attempt #{current_retry_count + 1} failed: #{error}. Retrying..."
+            error: "Attempt #{current_retry_count + 1} failed: #{error}. Retrying...",
+            claimed_by_worker: nil,
+            claimed_at: nil
           })
 
           # Re-dispatch the task

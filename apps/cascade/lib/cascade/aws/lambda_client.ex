@@ -57,13 +57,29 @@ defmodule Cascade.AWS.LambdaClient do
     request = ExAws.Lambda.invoke(function_name, json_payload, opts)
 
     case ExAws.request(request, recv_timeout: timeout) do
+      # Lambda function raised an exception - errorMessage indicates function error
+      {:ok, %{"errorMessage" => error_message, "errorType" => error_type} = response} ->
+        Logger.error("❌ [LAMBDA_FUNCTION_ERROR] function=#{function_name}, error_type=#{error_type}")
+        Logger.error("Error message: #{error_message}")
+        Logger.debug("Full error response: #{inspect(response, pretty: true)}")
+        {:error, {:function_error, error_type, error_message}}
+
+      # Lambda invocation succeeded with statusCode response (typical for API Gateway format)
       {:ok, %{"statusCode" => 200, "body" => body} = response} ->
         handle_lambda_response(body, response, invocation_type)
 
+      # Async invocation accepted
       {:ok, %{"statusCode" => 202}} when invocation_type == :async ->
         Logger.info("LambdaClient: Async invocation successful")
         {:ok, :async_invoked}
 
+      # Lambda returned a body directly (success case without statusCode wrapper)
+      {:ok, response} when is_map(response) and not is_map_key(response, "statusCode") and not is_map_key(response, "errorMessage") ->
+        Logger.info("✅ [LAMBDA_SUCCESS] function=#{function_name}")
+        Logger.debug("LambdaClient: Result: #{inspect(response)}")
+        {:ok, response}
+
+      # Other response with statusCode (error cases)
       {:ok, response} ->
         status = response["statusCode"] || response[:status_code] || "unknown"
         Logger.error("❌ [LAMBDA_HTTP_ERROR] function=#{function_name}, status=#{status}")
