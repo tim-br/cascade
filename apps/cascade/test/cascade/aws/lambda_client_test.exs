@@ -99,7 +99,8 @@ defmodule Cascade.AWS.LambdaClientTest do
 
       assert is_binary(payload["timestamp"])
       # Should be parseable as DateTime
-      assert {:ok, _dt} = DateTime.from_iso8601(payload["timestamp"])
+      # DateTime.from_iso8601/1 returns {:ok, datetime, offset}
+      assert {:ok, _dt, _offset} = DateTime.from_iso8601(payload["timestamp"])
     end
   end
 
