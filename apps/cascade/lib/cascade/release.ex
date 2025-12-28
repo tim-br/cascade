@@ -53,9 +53,19 @@ defmodule Cascade.Release do
         {:error, reason}
     end
 
+    result3 = case Cascade.Examples.DAGLoader.load_test_flaky_dag() do
+      {:ok, dag} ->
+        IO.puts("✓ Loaded DAG: #{dag.name}")
+        :ok
+
+      {:error, reason} ->
+        IO.puts("✗ Error loading flaky dag: #{inspect(reason)}")
+        {:error, reason}
+    end
+
     # Return error if any failed
-    case {result1, result2} do
-      {:ok, :ok} -> :ok
+    case {result1, result2, result3} do
+      {:ok, :ok, :ok} -> :ok
       _ -> {:error, "One or more DAGs failed to load"}
     end
   end
