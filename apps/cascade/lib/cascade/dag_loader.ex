@@ -25,6 +25,7 @@ defmodule Cascade.DagLoader do
   require Logger
 
   alias Cascade.Workflows
+  alias Cascade.Events
   alias Cascade.DagLoader.{LocalSource, S3Source, Validator}
 
   @default_scan_interval 30_000  # 30 seconds
@@ -219,8 +220,14 @@ defmodule Cascade.DagLoader do
           :ok
 
         dag ->
-          Workflows.update_dag(dag, %{enabled: false})
-          Logger.info("   Disabled DAG: #{dag_name}")
+          case Workflows.update_dag(dag, %{enabled: false}) do
+            {:ok, _updated_dag} ->
+              Logger.info("   Disabled DAG: #{dag_name}")
+              broadcast_dag_event(:deleted, dag_name)
+
+            {:error, _reason} ->
+              :ok
+          end
       end
     end)
 
@@ -287,14 +294,39 @@ defmodule Cascade.DagLoader do
       enabled: Map.get(definition, "enabled", true)
     }
 
-    case Workflows.get_dag_by_name(name) do
-      nil ->
-        # Create new DAG
-        Workflows.create_dag(attrs)
+    result =
+      case Workflows.get_dag_by_name(name) do
+        nil ->
+          # Create new DAG
+          case Workflows.create_dag(attrs) do
+            {:ok, _dag} = success ->
+              broadcast_dag_event(:created, name)
+              success
 
-      existing_dag ->
-        # Update existing DAG
-        Workflows.update_dag(existing_dag, attrs)
-    end
+            error ->
+              error
+          end
+
+        existing_dag ->
+          # Update existing DAG
+          case Workflows.update_dag(existing_dag, attrs) do
+            {:ok, _dag} = success ->
+              broadcast_dag_event(:updated, name)
+              success
+
+            error ->
+              error
+          end
+      end
+
+    result
+  end
+
+  defp broadcast_dag_event(action, dag_name) do
+    Phoenix.PubSub.broadcast(
+      Cascade.PubSub,
+      Events.dag_updates_topic(),
+      {:dag_event, %{action: action, dag_name: dag_name}}
+    )
   end
 end
