@@ -31,12 +31,12 @@ defmodule Cascade.Workflows do
       [%DAG{}, ...]
 
   """
-  defdelegate list_dags(), to: backend()
+  def list_dags, do: backend().list_dags()
 
   @doc """
   Returns the list of enabled dags.
   """
-  defdelegate list_enabled_dags(), to: backend()
+  def list_enabled_dags, do: backend().list_enabled_dags()
 
   @doc """
   Gets a single dag.
@@ -52,12 +52,12 @@ defmodule Cascade.Workflows do
       ** (Ecto.NoResultsError)
 
   """
-  defdelegate get_dag!(id), to: backend()
+  def get_dag!(id), do: backend().get_dag!(id)
 
   @doc """
   Gets a dag by name.
   """
-  defdelegate get_dag_by_name(name), to: backend()
+  def get_dag_by_name(name), do: backend().get_dag_by_name(name)
 
   @doc """
   Creates a dag.
@@ -71,7 +71,7 @@ defmodule Cascade.Workflows do
       {:error, %Ecto.Changeset{}}
 
   """
-  defdelegate create_dag(attrs \\ %{}), to: backend()
+  def create_dag(attrs \\ %{}), do: backend().create_dag(attrs)
 
   @doc """
   Updates a dag.
@@ -85,7 +85,7 @@ defmodule Cascade.Workflows do
       {:error, %Ecto.Changeset{}}
 
   """
-  defdelegate update_dag(dag, attrs), to: backend()
+  def update_dag(%DAG{} = dag, attrs), do: backend().update_dag(dag, attrs)
 
   @doc """
   Deletes a dag.
@@ -99,85 +99,89 @@ defmodule Cascade.Workflows do
       {:error, %Ecto.Changeset{}}
 
   """
-  defdelegate delete_dag(dag), to: backend()
+  def delete_dag(%DAG{} = dag), do: backend().delete_dag(dag)
 
   ## Job functions
 
   @doc """
   Returns the list of jobs.
   """
-  defdelegate list_jobs(), to: backend()
+  def list_jobs, do: backend().list_jobs()
 
   @doc """
   Returns the list of jobs for a specific DAG.
   """
-  defdelegate list_jobs_for_dag(dag_id), to: backend()
+  def list_jobs_for_dag(dag_id), do: backend().list_jobs_for_dag(dag_id)
 
   @doc """
   Returns the list of active (running or pending) jobs.
   """
-  defdelegate list_active_jobs(), to: backend()
+  def list_active_jobs, do: backend().list_active_jobs()
 
   @doc """
   Gets a single job.
 
   Raises `Ecto.NoResultsError` if the Job does not exist.
   """
-  defdelegate get_job!(id), to: backend()
+  def get_job!(id), do: backend().get_job!(id)
 
   @doc """
   Gets a job with preloaded associations.
   """
-  defdelegate get_job_with_details!(id), to: backend()
+  def get_job_with_details!(id), do: backend().get_job_with_details!(id)
 
   @doc """
   Creates a job.
   """
-  defdelegate create_job(attrs \\ %{}), to: backend()
+  def create_job(attrs \\ %{}), do: backend().create_job(attrs)
 
   @doc """
   Updates a job.
   """
-  defdelegate update_job(job, attrs), to: backend()
+  def update_job(%Job{} = job, attrs), do: backend().update_job(job, attrs)
 
   @doc """
   Deletes a job.
   """
-  defdelegate delete_job(job), to: backend()
+  def delete_job(%Job{} = job), do: backend().delete_job(job)
 
   ## TaskExecution functions
 
   @doc """
   Returns the list of task_executions.
   """
-  defdelegate list_task_executions(), to: backend()
+  def list_task_executions, do: backend().list_task_executions()
 
   @doc """
   Returns the list of task executions for a specific job.
   """
-  defdelegate list_task_executions_for_job(job_id), to: backend()
+  def list_task_executions_for_job(job_id), do: backend().list_task_executions_for_job(job_id)
 
   @doc """
   Gets a single task_execution.
 
   Raises `Ecto.NoResultsError` if the TaskExecution does not exist.
   """
-  defdelegate get_task_execution!(id), to: backend()
+  def get_task_execution!(id), do: backend().get_task_execution!(id)
 
   @doc """
   Creates a task_execution.
   """
-  defdelegate create_task_execution(attrs \\ %{}), to: backend()
+  def create_task_execution(attrs \\ %{}), do: backend().create_task_execution(attrs)
 
   @doc """
   Updates a task_execution.
   """
-  defdelegate update_task_execution(task_execution, attrs), to: backend()
+  def update_task_execution(%TaskExecution{} = task_execution, attrs) do
+    backend().update_task_execution(task_execution, attrs)
+  end
 
   @doc """
   Deletes a task_execution.
   """
-  defdelegate delete_task_execution(task_execution), to: backend()
+  def delete_task_execution(%TaskExecution{} = task_execution) do
+    backend().delete_task_execution(task_execution)
+  end
 
   @doc """
   Atomically claims a task for execution by a worker.
@@ -186,7 +190,9 @@ defmodule Cascade.Workflows do
   Returns {:error, :already_claimed} if already claimed by another worker.
   Returns {:error, :already_completed} if task is already completed.
   """
-  defdelegate claim_task(job_id, task_id, worker_id), to: backend()
+  def claim_task(job_id, task_id, worker_id) do
+    backend().claim_task(job_id, task_id, worker_id)
+  end
 
   @doc """
   Gets the current job state computed from task executions.
@@ -198,23 +204,25 @@ defmodule Cascade.Workflows do
   - :failed_tasks - MapSet of failed task IDs
   - :skipped_tasks - MapSet of skipped task IDs (upstream_failed)
   """
-  defdelegate get_job_state(job_id), to: backend()
+  def get_job_state(job_id), do: backend().get_job_state(job_id)
 
   ## WorkerHeartbeat functions
 
   @doc """
   Records or updates a worker heartbeat.
   """
-  defdelegate upsert_worker_heartbeat(node, capacity, active_tasks), to: backend()
+  def upsert_worker_heartbeat(node, capacity, active_tasks) do
+    backend().upsert_worker_heartbeat(node, capacity, active_tasks)
+  end
 
   @doc """
   Gets all active worker heartbeats.
   Returns workers that have been seen in the last 30 seconds.
   """
-  defdelegate get_active_workers(), to: backend()
+  def get_active_workers, do: backend().get_active_workers()
 
   @doc """
   Gets a specific worker heartbeat by node name.
   """
-  defdelegate get_worker_heartbeat(node), to: backend()
+  def get_worker_heartbeat(node), do: backend().get_worker_heartbeat(node)
 end
