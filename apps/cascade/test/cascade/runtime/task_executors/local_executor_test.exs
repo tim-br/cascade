@@ -229,7 +229,7 @@ defmodule Cascade.Runtime.TaskExecutors.LocalExecutorTest do
       tasks = [
         {"Cascade.Examples.Tasks.ExtractData", "extract", :deterministic},
         {"Cascade.Examples.Tasks.TransformData", "transform", :flaky},  # 50% failure rate
-        {"Cascade.Examples.Tasks.LoadData", "load", :deterministic},
+        {"Cascade.Examples.Tasks.LoadData", "load", :flaky},  # 50% failure rate
         {"Cascade.Examples.Tasks.SendNotification", "notify", :deterministic}
       ]
 
