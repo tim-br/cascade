@@ -88,6 +88,11 @@ defmodule Cascade.Runtime.TaskRunner do
         # Task already being executed by another worker, skip
         Logger.debug("Task already claimed by another worker: job_id=#{job_id}, task_id=#{task_id}")
         {:noreply, state}
+
+      {:error, :already_completed} ->
+        # Task already completed (success or upstream_failed), cannot be re-executed
+        Logger.debug("Task already completed, skipping: job_id=#{job_id}, task_id=#{task_id}")
+        {:noreply, state}
     end
   end
 

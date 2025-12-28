@@ -404,4 +404,130 @@ defmodule Cascade.Runtime.TaskRunnerTest do
       assert failed_dependency == "task_b"
     end
   end
+
+  describe "handle_info/2 with claim_task errors" do
+    test "CRITICAL: gracefully handles :already_completed error from claim_task" do
+      {:ok, dag} = Workflows.create_dag(%{
+        name: "completed_task_dag",
+        description: "Test already completed task",
+        definition: %{
+          "nodes" => [%{"id" => "task_done", "type" => "local", "config" => %{}}],
+          "edges" => []
+        },
+        enabled: true
+      })
+
+      {:ok, job} = Workflows.create_job(%{
+        dag_id: dag.id,
+        status: :running,
+        triggered_by: "test"
+      })
+
+      # Create a task that's already completed
+      {:ok, _} = Workflows.create_task_execution(%{
+        job_id: job.id,
+        task_id: "task_done",
+        status: :success,
+        execution_type: "local",
+        result: %{"output" => "already done"},
+        started_at: DateTime.utc_now(),
+        completed_at: DateTime.utc_now()
+      })
+
+      # Start a worker
+      {:ok, worker} = TaskRunner.start_link(worker_id: 999)
+
+      # Send execute_task message for already completed task
+      payload = %{
+        job_id: job.id,
+        task_id: "task_done",
+        task_config: %{
+          "id" => "task_done",
+          "type" => "local",
+          "config" => %{"module" => "Cascade.Examples.Tasks.SampleTask"}
+        },
+        context: %{},
+        depends_on: []
+      }
+
+      # This should NOT crash the worker
+      send(worker, {:execute_task, payload})
+
+      # Give it time to process
+      Process.sleep(100)
+
+      # Worker should still be alive
+      assert Process.alive?(worker)
+
+      # Task should still be :success (not re-executed)
+      task_executions = Workflows.list_task_executions_for_job(job.id)
+      task = Enum.find(task_executions, fn te -> te.task_id == "task_done" end)
+      assert task.status == :success
+
+      # Cleanup
+      GenServer.stop(worker)
+    end
+
+    test "gracefully handles :already_claimed error from claim_task" do
+      {:ok, dag} = Workflows.create_dag(%{
+        name: "claimed_task_dag",
+        description: "Test already claimed task",
+        definition: %{
+          "nodes" => [%{"id" => "task_claimed", "type" => "local", "config" => %{}}],
+          "edges" => []
+        },
+        enabled: true
+      })
+
+      {:ok, job} = Workflows.create_job(%{
+        dag_id: dag.id,
+        status: :running,
+        triggered_by: "test"
+      })
+
+      # Create a task that's already claimed by another worker
+      {:ok, _} = Workflows.create_task_execution(%{
+        job_id: job.id,
+        task_id: "task_claimed",
+        status: :running,
+        execution_type: "local",
+        claimed_by_worker: "other_worker",
+        claimed_at: DateTime.utc_now(),
+        started_at: DateTime.utc_now()
+      })
+
+      # Start a worker
+      {:ok, worker} = TaskRunner.start_link(worker_id: 998)
+
+      # Send execute_task message for already claimed task
+      payload = %{
+        job_id: job.id,
+        task_id: "task_claimed",
+        task_config: %{
+          "id" => "task_claimed",
+          "type" => "local",
+          "config" => %{"module" => "Cascade.Examples.Tasks.SampleTask"}
+        },
+        context: %{},
+        depends_on: []
+      }
+
+      # This should NOT crash the worker
+      send(worker, {:execute_task, payload})
+
+      # Give it time to process
+      Process.sleep(100)
+
+      # Worker should still be alive
+      assert Process.alive?(worker)
+
+      # Task should still be claimed by other_worker
+      task_executions = Workflows.list_task_executions_for_job(job.id)
+      task = Enum.find(task_executions, fn te -> te.task_id == "task_claimed" end)
+      assert task.claimed_by_worker == "other_worker"
+
+      # Cleanup
+      GenServer.stop(worker)
+    end
+  end
 end

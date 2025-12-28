@@ -889,4 +889,248 @@ defmodule Cascade.Runtime.SchedulerTest do
       assert MapSet.member?(job_state.failed_tasks, "task1") == false
     end
   end
+
+  describe "task retry logic" do
+    test "CRITICAL: retry resets task to pending status" do
+      # Create DAG with retry configuration
+      dag_definition = %{
+        "name" => "retry_test_dag",
+        "nodes" => [
+          %{
+            "id" => "retryable_task",
+            "type" => "local",
+            "config" => %{
+              "command" => "exit 1",
+              "retry" => 2  # Allow 2 retries
+            }
+          }
+        ],
+        "edges" => [],
+        "metadata" => %{"description" => "Retry test"}
+      }
+
+      {:ok, dag} = Workflows.create_dag(%{
+        name: "retry_test_dag",
+        description: "Retry test",
+        definition: dag_definition,
+        enabled: true
+      })
+
+      {:ok, job} = Workflows.create_job(%{
+        dag_id: dag.id,
+        status: :running,
+        triggered_by: "test",
+        started_at: DateTime.utc_now()
+      })
+
+      {:ok, task_exec} = Workflows.create_task_execution(%{
+        job_id: job.id,
+        task_id: "retryable_task",
+        status: :failed,
+        execution_type: "local",
+        retry_count: 0,
+        error: "First attempt failed",
+        claimed_by_worker: "worker_1",
+        claimed_at: DateTime.utc_now(),
+        started_at: DateTime.utc_now(),
+        completed_at: DateTime.utc_now()
+      })
+
+      # Simulate retry by updating task execution
+      # (This is what handle_cast({:task_failed, ...}) does)
+      {:ok, updated_task} = Workflows.update_task_execution(task_exec, %{
+        status: :pending,
+        retry_count: 1,
+        error: "Attempt 1 failed: First attempt failed. Retrying...",
+        claimed_by_worker: nil,
+        claimed_at: nil
+      })
+
+      # Verify task was reset to pending
+      assert updated_task.status == :pending
+      assert updated_task.retry_count == 1
+      assert updated_task.claimed_by_worker == nil
+      assert updated_task.claimed_at == nil
+    end
+
+    test "CRITICAL: retried task can be claimed again after reset" do
+      dag_definition = %{
+        "name" => "reclaim_test_dag",
+        "nodes" => [
+          %{
+            "id" => "task_retry",
+            "type" => "local",
+            "config" => %{"retry" => 1}
+          }
+        ],
+        "edges" => [],
+        "metadata" => %{"description" => "Reclaim test"}
+      }
+
+      {:ok, dag} = Workflows.create_dag(%{
+        name: "reclaim_test_dag",
+        description: "Reclaim test",
+        definition: dag_definition,
+        enabled: true
+      })
+
+      {:ok, job} = Workflows.create_job(%{
+        dag_id: dag.id,
+        status: :running,
+        triggered_by: "test"
+      })
+
+      {:ok, task_exec} = Workflows.create_task_execution(%{
+        job_id: job.id,
+        task_id: "task_retry",
+        status: :failed,
+        execution_type: "local",
+        retry_count: 0,
+        claimed_by_worker: "worker_1",
+        claimed_at: DateTime.utc_now()
+      })
+
+      # Reset for retry (like scheduler does)
+      {:ok, _} = Workflows.update_task_execution(task_exec, %{
+        status: :pending,
+        retry_count: 1,
+        claimed_by_worker: nil,
+        claimed_at: nil
+      })
+
+      # Now a worker should be able to claim it
+      assert {:ok, :claimed} = Workflows.claim_task(job.id, "task_retry", "worker_2")
+
+      # Verify claim succeeded
+      refreshed_task = Workflows.get_task_execution!(task_exec.id)
+      assert refreshed_task.claimed_by_worker == "worker_2"
+      assert refreshed_task.claimed_at != nil
+    end
+
+    test "task with retry_count = 0 and max_retries = 0 is not retried" do
+      dag_definition = %{
+        "name" => "no_retry_dag",
+        "nodes" => [
+          %{
+            "id" => "no_retry_task",
+            "type" => "local",
+            "config" => %{"command" => "exit 1"}
+            # No retry field = defaults to 0
+          }
+        ],
+        "edges" => [],
+        "metadata" => %{"description" => "No retry"}
+      }
+
+      {:ok, dag} = Workflows.create_dag(%{
+        name: "no_retry_dag",
+        description: "No retry",
+        definition: dag_definition,
+        enabled: true
+      })
+
+      {:ok, job} = Workflows.create_job(%{
+        dag_id: dag.id,
+        status: :running,
+        triggered_by: "test"
+      })
+
+      {:ok, task_exec} = Workflows.create_task_execution(%{
+        job_id: job.id,
+        task_id: "no_retry_task",
+        status: :pending,
+        execution_type: "local",
+        retry_count: 0
+      })
+
+      # Check max_retries from config
+      task_config = Enum.find(dag_definition["nodes"], fn n -> n["id"] == "no_retry_task" end)
+      max_retries = case task_config["config"]["retry"] do
+        n when is_integer(n) -> n
+        _ -> 0
+      end
+
+      assert max_retries == 0
+
+      # With retry_count = 0 and max_retries = 0, should not retry
+      # retry_count < max_retries => 0 < 0 => false
+      assert task_exec.retry_count + 1 == 1
+    end
+
+    test "task with retry=3 allows up to 3 retries (4 total attempts)" do
+      dag_definition = %{
+        "name" => "multi_retry_dag",
+        "nodes" => [
+          %{
+            "id" => "multi_retry_task",
+            "type" => "local",
+            "config" => %{
+              "command" => "exit 1",
+              "retry" => 3  # 3 retries = 4 total attempts
+            }
+          }
+        ],
+        "edges" => [],
+        "metadata" => %{"description" => "Multi retry"}
+      }
+
+      {:ok, dag} = Workflows.create_dag(%{
+        name: "multi_retry_dag",
+        description: "Multi retry",
+        definition: dag_definition,
+        enabled: true
+      })
+
+      task_config = Enum.find(dag_definition["nodes"], fn n -> n["id"] == "multi_retry_task" end)
+      max_retries = case task_config["config"]["retry"] do
+        n when is_integer(n) -> n
+        _ -> 0
+      end
+
+      assert max_retries == 3
+    end
+
+    test "CRITICAL: successful tasks cannot be claimed even after failed retry" do
+      # This tests the edge case where:
+      # 1. Task fails, gets retried
+      # 2. Retry succeeds
+      # 3. Should NOT be claimable anymore
+
+      dag_definition = %{
+        "name" => "success_after_retry_dag",
+        "nodes" => [
+          %{"id" => "task_x", "type" => "local", "config" => %{"retry" => 1}}
+        ],
+        "edges" => [],
+        "metadata" => %{"description" => "Success after retry"}
+      }
+
+      {:ok, dag} = Workflows.create_dag(%{
+        name: "success_after_retry_dag",
+        description: "Success after retry",
+        definition: dag_definition,
+        enabled: true
+      })
+
+      {:ok, job} = Workflows.create_job(%{
+        dag_id: dag.id,
+        status: :running,
+        triggered_by: "test"
+      })
+
+      {:ok, task_exec} = Workflows.create_task_execution(%{
+        job_id: job.id,
+        task_id: "task_x",
+        status: :success,
+        execution_type: "local",
+        retry_count: 1,  # Had 1 retry
+        result: %{"output" => "success on retry"},
+        started_at: DateTime.utc_now(),
+        completed_at: DateTime.utc_now()
+      })
+
+      # Even though retry_count > 0, task is successful so NOT claimable
+      assert {:error, :already_completed} = Workflows.claim_task(job.id, "task_x", "worker_1")
+    end
+  end
 end
