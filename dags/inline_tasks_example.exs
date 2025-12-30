@@ -193,6 +193,6 @@ end
     %{"from" => "fetch_weather", "to" => "log_to_database"},
     %{"from" => "analyze_weather", "to" => "log_to_database"}
   ],
-  "description" => "Weather monitoring pipeline with inline task definitions (Airflow-style) foo",
+  "description" => "Weather monitoring pipeline with inline task definitions (Airflow-style)",
   "enabled" => true
 }
