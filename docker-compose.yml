@@ -1,10 +1,6 @@
 services:
   cascade:
-    build:
-      context: .
-      dockerfile: Dockerfile
-    # Use pre-built image once TTY issue is fixed:
-    # image: ghcr.io/tim-br/cascade:latest
+    image: ghcr.io/tim-br/cascade:latest
     ports:
       - "4000:4000"
     volumes:
