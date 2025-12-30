@@ -7,6 +7,10 @@ defmodule Cascade.Application do
 
   @impl true
   def start(_type, _args) do
+    # Run migrations automatically for SQLite in containerized environments
+    # For Postgres, use manual migration commands
+    maybe_run_migrations()
+
     children = [
       # Infrastructure
       Cascade.Repo,
@@ -33,6 +37,17 @@ defmodule Cascade.Application do
 
       error ->
         error
+    end
+  end
+
+  defp maybe_run_migrations do
+    backend = Application.get_env(:cascade, :storage_backend, Cascade.Storage.SQLiteBackend)
+    auto_migrate = System.get_env("AUTO_MIGRATE", "true") == "true"
+
+    # Auto-migrate for SQLite (single-node, file-based)
+    # For Postgres, disable auto-migrate and require explicit migration commands
+    if backend == Cascade.Storage.SQLiteBackend and auto_migrate do
+      Cascade.Release.migrate()
     end
   end
 

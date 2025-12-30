@@ -42,14 +42,12 @@ services:
       - DAGS_DIR=/app/dags
       - DAGS_ENABLED=true
       - DAGS_SCAN_INTERVAL=30
-    # Run migrations and start the application
-    command: >
-      sh -c '
-        echo "Running database migrations..." &&
-        ERL_FLAGS="-noshell -noinput" bin/init eval "Cascade.Release.migrate()" &&
-        echo "Starting Cascade..." &&
-        exec bin/init start
-      '
+
+      # Migration configuration
+      # Automatically run migrations on startup for SQLite (zero-config setup)
+      # For Postgres production deployments, set to 'false' and run migrations separately
+      - AUTO_MIGRATE=true
+    command: bin/init start
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:4000/"]
       interval: 30s
