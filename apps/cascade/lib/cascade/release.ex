@@ -12,8 +12,18 @@ defmodule Cascade.Release do
   def migrate do
     load_app()
 
+    # Check if repo is already started (when called from application startup)
+    repo_already_running? = Process.whereis(Cascade.Repo) != nil
+
     for repo <- repos() do
-      {:ok, _, _} = Ecto.Migrator.with_repo(repo, &Ecto.Migrator.run(&1, :up, all: true))
+      if repo_already_running? do
+        # Repo already running, just run migrations directly
+        path = Application.app_dir(:cascade, "priv/repo/migrations")
+        Ecto.Migrator.run(repo, path, :up, all: true)
+      else
+        # Repo not running, use with_repo to start it temporarily
+        {:ok, _, _} = Ecto.Migrator.with_repo(repo, &Ecto.Migrator.run(&1, :up, all: true))
+      end
     end
   end
 
