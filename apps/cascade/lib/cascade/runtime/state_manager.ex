@@ -87,7 +87,9 @@ defmodule Cascade.Runtime.StateManager do
 
   @impl true
   def init(_opts) do
-    Logger.info("StateManager initialized (Postgres-based)")
+    backend = Workflows.backend()
+    backend_name = backend |> Module.split() |> List.last()
+    Logger.info("StateManager initialized (#{backend_name}-based)")
     {:ok, %{}}
   end
 

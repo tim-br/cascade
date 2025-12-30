@@ -1,0 +1,36 @@
+{
+  "nodes": [
+    {
+      "id": "fetch",
+      "type": "local",
+      "config": {
+        "module": "ReusableTasks.DataPipeline.FetchFromAPI",
+        "timeout": 60
+      }
+    },
+    {
+      "id": "validate",
+      "type": "local",
+      "config": {
+        "module": "ReusableTasks.DataPipeline.ValidateData",
+        "timeout": 30
+      },
+      "depends_on": ["fetch"]
+    },
+    {
+      "id": "save",
+      "type": "local",
+      "config": {
+        "module": "ReusableTasks.DataPipeline.SaveToWarehouse",
+        "timeout": 60
+      },
+      "depends_on": ["validate"]
+    }
+  ],
+  "edges": [
+    {"from": "fetch", "to": "validate"},
+    {"from": "validate", "to": "save"}
+  ],
+  "description": "Pipeline using reusable tasks from reusable_tasks.exs",
+  "enabled": true
+}

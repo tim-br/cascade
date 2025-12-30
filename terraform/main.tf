@@ -36,6 +36,23 @@ resource "aws_s3_bucket_lifecycle_configuration" "cascade_artifacts" {
   }
 }
 
+# S3 Bucket for DAG definitions
+resource "aws_s3_bucket" "dags" {
+  bucket = var.dags_bucket_name
+
+  tags = {
+    Name = "Cascade DAG Definitions"
+  }
+}
+
+resource "aws_s3_bucket_versioning" "dags" {
+  bucket = aws_s3_bucket.dags.id
+
+  versioning_configuration {
+    status = "Enabled"
+  }
+}
+
 # IAM Role for Lambda functions
 resource "aws_iam_role" "lambda_role" {
   name = "${var.project_name}-lambda-role"

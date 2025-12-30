@@ -1,0 +1,85 @@
+version: '3.8'
+
+services:
+  cascade:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    # Use pre-built image once TTY issue is fixed:
+    # image: ghcr.io/tim-br/cascade:latest
+    ports:
+      - "4000:4000"
+    volumes:
+      # Persist SQLite database and DAG files
+      - cascade-data:/data
+      - ./dags:/app/dags:ro
+    environment:
+      # Erlang/OTP release configuration
+      - RELEASE_DISTRIBUTION=none
+      - RELEASE_NODE=cascade
+
+      # Server configuration
+      - PHX_HOST=localhost
+      - SECRET_KEY_BASE=${SECRET_KEY_BASE:-/CUQsf57gXbTlZCoXZGIa4l9E3eqg6YT2tVbXYCE2dwM5l1I5X0crI30UABbfomG7VCEje2gldYkYT2CbsAzwQ==}
+      - PORT=4000
+
+      # Database configuration (SQLite by default - no DATABASE_URL means SQLite)
+      - SQLITE_DATABASE_PATH=/data/cascade.db
+
+      # Optional: AWS configuration (only needed for Lambda/S3 features)
+      # - AWS_REGION=us-east-1
+      # - AWS_ACCESS_KEY_ID=your-key
+      # - AWS_SECRET_ACCESS_KEY=your-secret
+      # - CASCADE_S3_BUCKET=your-bucket
+
+      # Optional: Use Postgres instead of SQLite by uncommenting DATABASE_URL below
+      # and uncommenting the postgres service
+      # - DATABASE_URL=ecto://postgres:postgres@postgres:5432/cascade_prod
+
+      # Worker configuration
+      - CASCADE_WORKERS=4
+      - CASCADE_NODE_ROLE=both
+
+      # DAG loading configuration
+      - DAGS_DIR=/app/dags
+      - DAGS_ENABLED=true
+      - DAGS_SCAN_INTERVAL=30
+    # Run migrations and start the application
+    command: >
+      sh -c '
+        echo "Running database migrations..." &&
+        bin/init eval "Cascade.Release.migrate()" &&
+        echo "Starting Cascade..." &&
+        exec bin/init start
+      '
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:4000/"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    # Uncomment depends_on if using Postgres
+    # depends_on:
+    #   postgres:
+    #     condition: service_healthy
+
+  # Optional: Uncomment to use Postgres instead of SQLite
+  # postgres:
+  #   image: postgres:16-alpine
+  #   environment:
+  #     - POSTGRES_USER=postgres
+  #     - POSTGRES_PASSWORD=postgres
+  #     - POSTGRES_DB=cascade_prod
+  #   volumes:
+  #     - postgres-data:/var/lib/postgresql/data
+  #   ports:
+  #     - "5432:5432"
+  #   healthcheck:
+  #     test: ["CMD-SHELL", "pg_isready -U postgres"]
+  #     interval: 10s
+  #     timeout: 5s
+  #     retries: 5
+
+volumes:
+  cascade-data:
+  # postgres-data:  # Uncomment if using Postgres

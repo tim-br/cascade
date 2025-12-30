@@ -129,6 +129,17 @@ resource "aws_iam_role_policy" "ecs_task_s3_policy" {
           aws_s3_bucket.cascade_artifacts.arn,
           "${aws_s3_bucket.cascade_artifacts.arn}/*"
         ]
+      },
+      {
+        Effect = "Allow"
+        Action = [
+          "s3:GetObject",
+          "s3:ListBucket"
+        ]
+        Resource = [
+          aws_s3_bucket.dags.arn,
+          "${aws_s3_bucket.dags.arn}/*"
+        ]
       }
     ]
   })
@@ -165,7 +176,8 @@ resource "aws_ecs_task_definition" "cascade_app" {
         { name = "DATABASE_URL",      value = "ecto://cascade_admin:${var.db_password}@${aws_db_instance.cascade.endpoint}/cascade_prod" },
         { name = "SECRET_KEY_BASE",   value = var.secret_key_base },
         { name = "AWS_REGION",        value = data.aws_region.current.name },
-        { name = "CASCADE_S3_BUCKET", value = aws_s3_bucket.cascade_artifacts.id }
+        { name = "CASCADE_S3_BUCKET", value = aws_s3_bucket.cascade_artifacts.id },
+        { name = "DAGS_S3_BUCKET",    value = aws_s3_bucket.dags.id }
       ]
       logConfiguration = {
         logDriver = "awslogs"

@@ -82,6 +82,7 @@ defmodule Cascade.Release do
     # Ensure required apps are started
     Application.ensure_all_started(:ssl)
     Application.ensure_all_started(:postgrex)
+    Application.ensure_all_started(:ecto_sqlite3)
     Application.ensure_all_started(:ecto)
     Application.ensure_all_started(:ecto_sql)
     Application.ensure_all_started(:telemetry)

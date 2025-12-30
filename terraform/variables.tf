@@ -10,6 +10,12 @@ variable "bucket_name" {
   default     = "cascade-artifacts-demo"
 }
 
+variable "dags_bucket_name" {
+  description = "S3 bucket name for DAG definitions"
+  type        = string
+  default     = "cascade-dags-demo"
+}
+
 variable "project_name" {
   description = "Project name for resource naming"
   type        = string

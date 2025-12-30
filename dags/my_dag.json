@@ -1,0 +1,37 @@
+{
+  "nodes": [
+    {
+      "id": "extract",
+      "type": "local",
+      "config": {
+        "module": "Cascade.Examples.Tasks.ExtractData",
+        "timeout": 300,
+        "retry": 3
+      }
+    },
+    {
+      "id": "transform",
+      "type": "local",
+      "config": {
+        "module": "Cascade.Examples.Tasks.TransformData",
+        "timeout": 300,
+        "retry": 3
+      }
+    },
+    {
+      "id": "load",
+      "type": "local",
+      "config": {
+        "module": "Cascade.Examples.Tasks.LoadData",
+        "timeout": 300,
+        "retry": 3
+      }
+    }
+  ],
+  "edges": [
+    {"from": "extract", "to": "transform"},
+    {"from": "transform", "to": "load"}
+  ],
+  "description": "Simple ETL pipeline: Extract -> Transform -> Load",
+  "enabled": true
+}

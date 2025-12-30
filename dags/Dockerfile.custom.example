@@ -1,0 +1,26 @@
+# Example: Custom Cascade Image with External Dependencies
+# This shows how to add your own tasks with dependencies (Pattern 4)
+
+FROM ghcr.io/tim-br/cascade:latest
+
+# Example 1: Add task modules from your codebase
+# Uncomment and customize:
+# COPY lib/my_company/tasks /app/lib/my_company/tasks
+
+# Example 2: Add dependencies to mix.exs
+# Create a custom mix.exs or modify the existing one
+# COPY my_custom_deps.exs /tmp/
+# RUN cd /app && \
+#     echo 'def deps, do: [{:httpoison, "~> 2.0"}, {:timex, "~> 3.7"}]' >> mix.exs && \
+#     mix deps.get && \
+#     mix compile
+
+# Example 3: Install system dependencies
+# RUN apk add --no-cache imagemagick ffmpeg
+
+# Your DAGs can now reference custom modules:
+# {"config": {"module": "MyCompany.Tasks.AdvancedProcessor"}}
+
+# Usage:
+#   docker build -f dags/Dockerfile.custom.example -t cascade-custom .
+#   docker run -p 4000:4000 -v ./dags:/app/dags cascade-custom
