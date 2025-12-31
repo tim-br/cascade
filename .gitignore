@@ -39,3 +39,7 @@ erl_crash.dump
 
 terraform/tfplan
 cmds
+cascade_dev.db
+cascade_dev.db-shm cascade_dev.db-wal
+cascade_dev.db-shm
+cascade_dev.db-wal
