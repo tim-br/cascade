@@ -12,7 +12,7 @@ defmodule Cascade.Storage.PostgresBackend do
 
   import Ecto.Query, warn: false
   alias Cascade.Repo
-  alias Cascade.Workflows.{DAG, Job, TaskExecution, WorkerHeartbeat}
+  alias Cascade.Workflows.{DAG, DagSchedule, Job, TaskExecution, WorkerHeartbeat}
 
   ## DAG functions
 
@@ -321,6 +321,63 @@ defmodule Cascade.Storage.PostgresBackend do
   @impl true
   def get_worker_heartbeat(node) do
     Repo.get(WorkerHeartbeat, node)
+  end
+
+  ## DagSchedule functions
+
+  @impl true
+  def list_due_schedules(current_time) do
+    DagSchedule
+    |> where([s], s.is_active == true)
+    |> where([s], s.next_run_at <= ^current_time)
+    |> Repo.all()
+  end
+
+  @impl true
+  def get_dag_schedule(dag_id) do
+    Repo.get(DagSchedule, dag_id)
+  end
+
+  @impl true
+  def upsert_dag_schedule(attrs) do
+    %DagSchedule{}
+    |> DagSchedule.changeset(attrs)
+    |> Repo.insert(
+      on_conflict: {:replace, [:cron_expression, :next_run_at, :is_active, :updated_at]},
+      conflict_target: :dag_id
+    )
+  end
+
+  @impl true
+  def update_dag_schedule(%DagSchedule{} = schedule, attrs) do
+    schedule
+    |> DagSchedule.changeset(attrs)
+    |> Repo.update()
+  end
+
+  @impl true
+  def deactivate_dag_schedule(dag_id) do
+    DagSchedule
+    |> where([s], s.dag_id == ^dag_id)
+    |> Repo.update_all(set: [is_active: false, updated_at: DateTime.utc_now()])
+
+    :ok
+  end
+
+  @impl true
+  def delete_dag_schedule(dag_id) do
+    DagSchedule
+    |> where([s], s.dag_id == ^dag_id)
+    |> Repo.delete_all()
+
+    :ok
+  end
+
+  @impl true
+  def count_active_schedules do
+    DagSchedule
+    |> where([s], s.is_active == true)
+    |> Repo.aggregate(:count)
   end
 
   ## Private helpers

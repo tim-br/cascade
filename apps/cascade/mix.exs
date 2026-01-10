@@ -50,7 +50,8 @@ defmodule Cascade.MixProject do
       {:ex_aws_s3, "~> 2.5"},
       {:hackney, "~> 1.20"},
       {:sweet_xml, "~> 0.7"},
-      {:propcheck, "~> 1.5", only: [:test, :dev]}
+      {:propcheck, "~> 1.5", only: [:test, :dev]},
+      {:crontab, "~> 1.1"}
     ]
   end
 

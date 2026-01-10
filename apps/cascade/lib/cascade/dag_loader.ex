@@ -291,7 +291,8 @@ defmodule Cascade.DagLoader do
       name: name,
       description: Map.get(definition, "description", "Loaded from #{source_info[:source]}"),
       definition: definition,
-      enabled: Map.get(definition, "enabled", true)
+      enabled: Map.get(definition, "enabled", true),
+      schedule: Map.get(definition, "schedule")
     }
 
     result =

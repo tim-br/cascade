@@ -24,7 +24,10 @@ defmodule Cascade.Application do
       {Cascade.Runtime.StateManager, []},
       {Cascade.Runtime.WorkerSupervisor, []},
       {Cascade.Runtime.Scheduler, []},
-      {Cascade.Runtime.Executor, []}
+      {Cascade.Runtime.Executor, []},
+
+      # Cron-based scheduling
+      {Cascade.Runtime.CronScheduler, []}
     ]
 
     opts = [strategy: :one_for_one, name: Cascade.Supervisor]

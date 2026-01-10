@@ -8,7 +8,7 @@ defmodule Cascade.Workflows do
   (SQLite, Postgres, or DynamoDB) based on runtime configuration.
   """
 
-  alias Cascade.Workflows.{DAG, Job, TaskExecution}
+  alias Cascade.Workflows.{DAG, DagSchedule, Job, TaskExecution}
 
   @doc """
   Returns the configured storage backend module.
@@ -225,4 +225,47 @@ defmodule Cascade.Workflows do
   Gets a specific worker heartbeat by node name.
   """
   def get_worker_heartbeat(node), do: backend().get_worker_heartbeat(node)
+
+  ## DagSchedule functions
+
+  @doc """
+  Lists all schedules that are due to run.
+  Returns schedules where next_run_at <= current_time and is_active is true.
+  """
+  def list_due_schedules(current_time), do: backend().list_due_schedules(current_time)
+
+  @doc """
+  Gets schedule for a specific DAG.
+  """
+  def get_dag_schedule(dag_id), do: backend().get_dag_schedule(dag_id)
+
+  @doc """
+  Creates or updates a DAG schedule.
+  Uses upsert to handle both create and update in one operation.
+  """
+  def upsert_dag_schedule(attrs), do: backend().upsert_dag_schedule(attrs)
+
+  @doc """
+  Updates an existing schedule.
+  """
+  def update_dag_schedule(%DagSchedule{} = schedule, attrs) do
+    backend().update_dag_schedule(schedule, attrs)
+  end
+
+  @doc """
+  Deactivates a schedule (sets is_active = false).
+  Used when a DAG is disabled or has an invalid schedule.
+  """
+  def deactivate_dag_schedule(dag_id), do: backend().deactivate_dag_schedule(dag_id)
+
+  @doc """
+  Deletes a schedule.
+  Used when a DAG no longer has a schedule field.
+  """
+  def delete_dag_schedule(dag_id), do: backend().delete_dag_schedule(dag_id)
+
+  @doc """
+  Counts active schedules.
+  """
+  def count_active_schedules, do: backend().count_active_schedules()
 end

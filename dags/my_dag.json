@@ -33,5 +33,6 @@
     {"from": "transform", "to": "load"}
   ],
   "description": "Simple ETL pipeline: Extract -> Transform -> Load",
-  "enabled": true
+  "enabled": true,
+  "schedule": "* * * * *"
 }

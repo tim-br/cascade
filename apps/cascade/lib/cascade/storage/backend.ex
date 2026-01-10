@@ -9,7 +9,7 @@ defmodule Cascade.Storage.Backend do
   - DynamoDB (cloud-native, AWS)
   """
 
-  alias Cascade.Workflows.{DAG, Job, TaskExecution, WorkerHeartbeat}
+  alias Cascade.Workflows.{DAG, DagSchedule, Job, TaskExecution, WorkerHeartbeat}
 
   ## DAG functions
 
@@ -52,4 +52,15 @@ defmodule Cascade.Storage.Backend do
               {:ok, WorkerHeartbeat.t()} | {:error, Ecto.Changeset.t()}
   @callback get_active_workers() :: [WorkerHeartbeat.t()]
   @callback get_worker_heartbeat(String.t()) :: WorkerHeartbeat.t() | nil
+
+  ## DagSchedule functions
+
+  @callback list_due_schedules(DateTime.t()) :: [DagSchedule.t()]
+  @callback get_dag_schedule(binary()) :: DagSchedule.t() | nil
+  @callback upsert_dag_schedule(map()) :: {:ok, DagSchedule.t()} | {:error, Ecto.Changeset.t()}
+  @callback update_dag_schedule(DagSchedule.t(), map()) ::
+              {:ok, DagSchedule.t()} | {:error, Ecto.Changeset.t()}
+  @callback deactivate_dag_schedule(binary()) :: :ok
+  @callback delete_dag_schedule(binary()) :: :ok
+  @callback count_active_schedules() :: integer()
 end
