@@ -80,7 +80,7 @@ Cascade is an Airflow-inspired workflow orchestrator that fixes key design limit
 
 1. **Clone and install dependencies**
    ```bash
-   git clone <your-repo>
+   git clone git@github.com:tim-br/cascade.git
    cd cascade
    mix deps.get
    ```
